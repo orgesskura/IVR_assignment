@@ -1,0 +1,2 @@
+ivr_assignment
+-DCATKIN_DEVEL_PREFIX=/home/orges/Desktop/IVR_CW/IVR_assignment/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/orges/Desktop/IVR_CW/IVR_assignment/catkin_ws/install -G Unix Makefiles
