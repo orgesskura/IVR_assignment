@@ -31,6 +31,50 @@ class image_converter:
     self.joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
     self.joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
 
+  # In this method you can focus on detecting the centre of the red circle
+  def detect_red(self,image):
+      # Isolate the blue colour in the image as a binary image
+      mask = cv2.inRange(image, (0, 0, 100), (0, 0, 255))
+      # This applies a dilate that makes the binary region larger (the more iterations the larger it becomes)
+      kernel = np.ones((5, 5), np.uint8)
+      mask = cv2.dilate(mask, kernel, iterations=3)
+      # Obtain the moments of the binary image
+      M = cv2.moments(mask)
+      # Calculate pixel coordinates for the centre of the blob
+      cx = int(M['m10'] / M['m00'])
+      cy = int(M['m01'] / M['m00'])
+      return np.array([cx, cy])
+
+  # Detecting the centre of the green circle
+  def detect_green(self,image):
+      mask = cv2.inRange(image, (0, 100, 0), (0, 255, 0))
+      kernel = np.ones((5, 5), np.uint8)
+      mask = cv2.dilate(mask, kernel, iterations=3)
+      M = cv2.moments(mask)
+      cx = int(M['m10'] / M['m00'])
+      cy = int(M['m01'] / M['m00'])
+      return np.array([cx, cy])
+
+  # Detecting the centre of the blue circle
+  def detect_blue(self,image):
+      mask = cv2.inRange(image, (100, 0, 0), (255, 0, 0))
+      kernel = np.ones((5, 5), np.uint8)
+      mask = cv2.dilate(mask, kernel, iterations=3)
+      M = cv2.moments(mask)
+      cx = int(M['m10'] / M['m00'])
+      cy = int(M['m01'] / M['m00'])
+      return np.array([cx, cy])
+
+  # Detecting the centre of the yellow circle
+  def detect_yellow(self,image):
+      mask = cv2.inRange(image, (0, 100, 100), (0, 255, 255))
+      kernel = np.ones((5, 5), np.uint8)
+      mask = cv2.dilate(mask, kernel, iterations=3)
+      M = cv2.moments(mask)
+      cx = int(M['m10'] / M['m00'])
+      cy = int(M['m01'] / M['m00'])
+      return np.array([cx, cy])
+
   # Recieve data from camera 1, process it, and publish
   def callback1(self,data):
     # Recieve the image
@@ -50,26 +94,22 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
 
-    # Recieve data from camera 2, process it, and publish
+
+
+    # Recieve data from camera 2, process it to use it
   def callback2(self,data):
     # Recieve the image
     try:
-      self.cv_image1 = self.bridge.imgmsg_to_cv2(data, "bgr8")
+      self.cv_image2 = self.bridge.imgmsg_to_cv2(data, "bgr8")
     except CvBridgeError as e:
       print(e)
     
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)
 
-    im1=cv2.imshow('window1', self.cv_image1)
-    cv2.waitKey(1)
-    # Publish the results
-    try: 
-      self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
-    except CvBridgeError as e:
-      print(e)
+    
 
-      
+
 # call the class
 def main(args):
   ic = image_converter()
