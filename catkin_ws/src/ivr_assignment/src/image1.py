@@ -31,6 +31,9 @@ class image_converter:
     self.joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
     self.joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
 
+    # record the begining time
+    self.time_initial= rospy.get_time()
+
   # In this method you can focus on detecting the centre of the red circle
   def detect_red(self,image):
       # Isolate the blue colour in the image as a binary image
@@ -83,6 +86,7 @@ class image_converter:
      dist = np.sum((circle1Pos - circle2Pos)**2)
      return 2.5 / np.sqrt(dist)
 
+
   # Recieve data from camera 1, process it, and publish
   def callback1(self,data):
     # Recieve the image
@@ -93,6 +97,17 @@ class image_converter:
     
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)
+
+    #Set the joint angles  according to the assignment requirements
+    joint2_val = Float64()
+    joint2_val.data = (np.pi/2) * np.sin((np.pi/15) * (rospy.get_time() - self.time_initial)) 
+    self.joint2_pub.publish(joint2_val) 
+    joint3_val = Float64()
+    joint3_val.data = (np.pi/2) * np.sin((np.pi/18) * (rospy.get_time()-self.time_initial))
+    self.joint3_pub.publish(joint3_val)
+    joint4_val = Float64()
+    joint4_val.data = (np.pi/2) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
+    self.joint4_pub.publish(joint4_val)
 
     im1=cv2.imshow('window1', self.cv_image1)
     cv2.waitKey(1)
