@@ -75,6 +75,14 @@ class image_converter:
       cy = int(M['m01'] / M['m00'])
       return np.array([cx, cy])
 
+  def pixel2meter(self,image):
+    # Obtain the centre of each coloured blob,in particular yellow and blue
+     circle1Pos = self.detect_yellow(image)
+     circle2Pos = self.detect_blue(image)
+      # find the distance between two circles
+     dist = np.sum((circle1Pos - circle2Pos)**2)
+     return 2.5 / np.sqrt(dist)
+
   # Recieve data from camera 1, process it, and publish
   def callback1(self,data):
     # Recieve the image
