@@ -10,7 +10,6 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
-
 class image_converter:
 
   # Defines publisher and subscriber
@@ -43,10 +42,18 @@ class image_converter:
       mask = cv2.dilate(mask, kernel, iterations=3)
       # Obtain the moments of the binary image
       M = cv2.moments(mask)
+
       # Calculate pixel coordinates for the centre of the blob
-      cx = int(M['m10'] / M['m00'])
-      cy = int(M['m01'] / M['m00'])
-      return np.array([cx, cy])
+      if M['m00'] != 0 :
+            cy = int(M['m10'] / M['m00'])
+            cz = int(M['m01'] / M['m00'])
+      #this is in case red is blocked by green
+      else:
+            cy = self.detect_green(image)[0]
+            cz = self.detect_green(image)[1]
+      return np.array([cy, cz])
+
+      
 
   # Detecting the centre of the green circle
   def detect_green(self,image):
@@ -54,9 +61,15 @@ class image_converter:
       kernel = np.ones((5, 5), np.uint8)
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
-      cx = int(M['m10'] / M['m00'])
-      cy = int(M['m01'] / M['m00'])
-      return np.array([cx, cy])
+      if(M['m00'] != 0):
+            cy = int(M['m10'] / M['m00'])
+            cz = int(M['m01'] / M['m00'])
+      #in case blue is blocked by green
+      else:
+            cy = self.detect_blue(image)[0]
+            cz = self.detect_blue(image)[1]
+      return np.array([cy, cz])
+
 
   # Detecting the centre of the blue circle
   def detect_blue(self,image):
@@ -64,10 +77,17 @@ class image_converter:
       kernel = np.ones((5, 5), np.uint8)
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
-      cx = int(M['m10'] / M['m00'])
-      cy = int(M['m01'] / M['m00'])
-      return np.array([cx, cy])
+      if(M['m00'] != 0):
+            cy = int(M['m10'] / M['m00'])
+            cz = int(M['m01'] / M['m00'])
+      #in case blue is blocked by green
+      else:
+            cy = self.detect_green(image)[0]
+            cz = self.detect_green(image)[1]
+            
+      return np.array([cy, cz])
 
+  
   # Detecting the centre of the yellow circle
   def detect_yellow(self,image):
       mask = cv2.inRange(image, (0, 100, 100), (0, 255, 255))
@@ -87,7 +107,7 @@ class image_converter:
      return 2.5 / np.sqrt(dist)
 
 
-  # Recieve data from camera 1, process it, and publish
+  # Recieve data from camera 1, process it, and use it
   def callback1(self,data):
     # Recieve the image
     try:
@@ -126,7 +146,6 @@ class image_converter:
       self.cv_image2 = self.bridge.imgmsg_to_cv2(data, "bgr8")
     except CvBridgeError as e:
       print(e)
-    
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)
 
