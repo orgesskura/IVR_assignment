@@ -24,6 +24,8 @@ class image_converter:
     self.image_sub2 = rospy.Subscriber("/camera2/robot/image_raw",Image,self.callback2)
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
+    # initialize a publisher to send joints' angular position to a topic called joints_pos
+    self.joints_pub = rospy.Publisher("joints_pos",Float64MultiArray, queue_size=10)
     
     #Publisher each of the 3 joints since joint 1 is fixed
     self.joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
@@ -124,12 +126,29 @@ class image_converter:
     a = self.pixel2meter(image)
     dist = color_sphere(image) - self.detect_yellow()
     return a * dist[0]
-
+  
+  #get xyz coordinates for a colour sphere
   def get_coordinates(self,color_sphere):
         x_cord = self.detect_pos_x(self.cv_image2,color_sphere)
         y_cord = self.detect_pos_y(self.cv_image1,color_sphere)
         z_cord = self.detect_pos_z(self.cv_image1,color_sphere)
         return [x_cord,y_cord,z_cord]
+  
+  #calculate joint angles by using both images(for ex if i am in x-z plane rotating around x or z does not change anything)
+  def calcJoint_angles(self):
+        a = self.pixel2meter(self.cv_image1)
+        b = self.pixel2meter(self.cv_image2)
+        centerBlue1 = a * self.detect_blue(self.cv_image1)
+        centerGreen1 = a * self.detect_green(self.cv_image1)
+        centerBlue2 = b * self.detect_blue(self.cv_image2)
+        centerGreen2 = b * self.detect_green(self.cv_image2)
+        centerRed1 = a * self.detect_blue(self.cv_image1)
+        ja1 = np.arctan2(centerBlue1[0]- centerGreen1[0], centerBlue1[1] - centerGreen1[1])
+        ja2 = np.arctan2(centerBlue2[0]- centerGreen2[0], centerBlue2[1] - centerGreen2[1])
+        ja3 = np.arctan2(centerGreen1[0] - centerRed1[0],centerGreen1[1] - centerRed1[1]) - ja1
+        return [ja1,ja2,ja3]
+        
+
 
   
 
@@ -147,19 +166,24 @@ class image_converter:
     #Set the joint angles  according to the assignment requirements
     joint2_val = Float64()
     joint2_val.data = (np.pi/2) * np.sin((np.pi/15) * (rospy.get_time() - self.time_initial)) 
-    self.joint2_pub.publish(joint2_val) 
     joint3_val = Float64()
     joint3_val.data = (np.pi/2) * np.sin((np.pi/18) * (rospy.get_time()-self.time_initial))
-    self.joint3_pub.publish(joint3_val)
     joint4_val = Float64()
     joint4_val.data = (np.pi/2) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
-    self.joint4_pub.publish(joint4_val)
+
+    self.joints = Float64MultiArray()
+    x = self.calcJoint_angles()
+    self.joints.data = x
 
     im1=cv2.imshow('window1', self.cv_image1)
     cv2.waitKey(1)
     # Publish the results
     try: 
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
+      self.joint2_pub.publish(joint2_val)
+      self.joint3_pub.publish(joint3_val)
+      self.joint4_pub.publish(joint4_val)
+      self.joints_pub.publish(self.joints)
     except CvBridgeError as e:
       print(e)
 
