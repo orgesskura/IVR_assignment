@@ -9,6 +9,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
+import message_filters
 
 class image_converter:
 
@@ -19,9 +20,12 @@ class image_converter:
     # initialize a publisher to send images from camera1 to a topic named image_topic1
     self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 1)
     # initialize a subscriber to recieve messages rom a topic named /robot/camera1/image_raw and use callback function to recieve data
-    self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
+    self.image_sub1 = message_filters.Subscriber("/camera1/robot/image_raw",Image)
     #receive image from second camera
-    self.image_sub2 = rospy.Subscriber("/camera2/robot/image_raw",Image,self.callback2)
+    self.image_sub2 = message_filters.Subscriber("/camera2/robot/image_raw",Image)
+    # Synchronize subscriptions into one callback
+    ts = message_filters.TimeSynchronizer([self.image_sub1, self.image_sub2], 1)
+    ts.registerCallback(self.callback1)
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
     # initialize a publisher to send joints' angular position to a topic called joints_pos
@@ -31,6 +35,8 @@ class image_converter:
     self.joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
     self.joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
     self.joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
+
+
 
     # record the begining time
     self.time_initial= rospy.get_time()
@@ -153,10 +159,11 @@ class image_converter:
   
 
   # Recieve data from camera 1, process it, and use it
-  def callback1(self,data):
+  def callback1(self,data1,data2):
     # Recieve the image
     try:
-      self.cv_image1 = self.bridge.imgmsg_to_cv2(data, "bgr8")
+      self.cv_image1 = self.bridge.imgmsg_to_cv2(data1, "bgr8")
+      self.cv_image2 = self.bridge.imgmsg_to_cv2(data2, "bgr8")
     except CvBridgeError as e:
       print(e)
     
@@ -179,7 +186,7 @@ class image_converter:
     cv2.waitKey(1)
     # Publish the results
     try: 
-      self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
+      self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
       self.joint2_pub.publish(joint2_val)
       self.joint3_pub.publish(joint3_val)
       self.joint4_pub.publish(joint4_val)
