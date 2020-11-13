@@ -45,13 +45,13 @@ class image_converter:
 
       # Calculate pixel coordinates for the centre of the blob
       if M['m00'] != 0 :
-            cy = int(M['m10'] / M['m00'])
-            cz = int(M['m01'] / M['m00'])
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
       #this is in case red is blocked by green
       else:
-            cy = self.detect_green(image)[0]
-            cz = self.detect_green(image)[1]
-      return np.array([cy, cz])
+            cx = self.detect_green(image)[0]
+            cy = self.detect_green(image)[1]
+      return np.array([cx, cy])
 
       
 
@@ -62,13 +62,13 @@ class image_converter:
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
       if(M['m00'] != 0):
-            cy = int(M['m10'] / M['m00'])
-            cz = int(M['m01'] / M['m00'])
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
       #in case blue is blocked by green
       else:
-            cy = self.detect_blue(image)[0]
-            cz = self.detect_blue(image)[1]
-      return np.array([cy, cz])
+            cx = self.detect_blue(image)[0]
+            cy = self.detect_blue(image)[1]
+      return np.array([cx, cy])
 
 
   # Detecting the centre of the blue circle
@@ -78,14 +78,14 @@ class image_converter:
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
       if(M['m00'] != 0):
-            cy = int(M['m10'] / M['m00'])
-            cz = int(M['m01'] / M['m00'])
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
       #in case blue is blocked by green
       else:
-            cy = self.detect_green(image)[0]
-            cz = self.detect_green(image)[1]
+            cx = self.detect_green(image)[0]
+            cy = self.detect_green(image)[1]
             
-      return np.array([cy, cz])
+      return np.array([cx, cy])
 
   
   # Detecting the centre of the yellow circle
@@ -106,6 +106,32 @@ class image_converter:
      dist = np.sum((circle1Pos - circle2Pos)**2)
      return 2.5 / np.sqrt(dist)
 
+  #detect y-coordinate given the image and the color we want to detect
+  def detect_pos_y(self,image,color_sphere):
+    a = self.pixel2meter(image)
+    dist = color_sphere(image) - self.detect_yellow()
+    return a * dist[0]
+
+
+  #detect y-coordinate given an image and the color we want to detect
+  def detect_pos_z(self,image,color_sphere):
+    a = self.pixel2meter(image)
+    dist = color_sphere(image) - self.detect_yellow()
+    return a * dist[1]
+
+  # detect x-coordinate given an image and the color we want to detect
+  def detect_pos_x(self,image,color_sphere):
+    a = self.pixel2meter(image)
+    dist = color_sphere(image) - self.detect_yellow()
+    return a * dist[0]
+
+  def get_coordinates(self,color_sphere):
+        x_cord = self.detect_pos_x(self.cv_image2,color_sphere)
+        y_cord = self.detect_pos_y(self.cv_image1,color_sphere)
+        z_cord = self.detect_pos_z(self.cv_image1,color_sphere)
+        return [x_cord,y_cord,z_cord]
+
+  
 
   # Recieve data from camera 1, process it, and use it
   def callback1(self,data):
