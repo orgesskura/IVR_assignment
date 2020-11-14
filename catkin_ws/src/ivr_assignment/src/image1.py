@@ -10,7 +10,6 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 import message_filters
-import sympy
 from scipy.optimize import least_squares
 
 class image_converter:
@@ -153,18 +152,22 @@ class image_converter:
        [0,0,0,1]])
        trans12 = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,2.5],[0,0,0,1]])
        trans34 = np.array([[np.cos(thetas[1]),0,np.sin(thetas[1]),0],
-       [0,1,0,0]
-       [-np.sin(thetas[1]),0,np.cos(thetas[1]),3.5]
+       [0,1,0,0],
+       [-np.sin(thetas[1]),0,np.cos(thetas[1]),3.5],
        [0,0,0,1]])
        trans45 = np.array([[1,0,0,0],
-       [0,np.cos(thetas[2]),-np.sin(thetas[2]),0]
-       [0,np.sin(thetas[2]),np.cos(thetas[2],3)]
+       [0,np.cos(thetas[2]),-np.sin(thetas[2]),0],
+       [0,np.sin(thetas[2]),np.cos(thetas[2],3)],
        [0,0,0,1]])
        #calculate translation matrices from one frame to another
        trans13 = np.matmul(trans12,trans23)
        trans14 = np.matmul(trans13,trans34)
        trans15 = np.matmul(trans15,trans45)
+       return trans14,trans15
+
+  def optimize_func(self,thetas):
        #calculate positon taken from translation matrices vs ones taken by computer vision so that we pass it as argument to least squares
+       trans14,trans15 = self.calcTrans(thetas)
        calc_gx = trans14[0,3]
        calc_gy = trans14[1,3]
        calc_gz = trans14[2,3]
