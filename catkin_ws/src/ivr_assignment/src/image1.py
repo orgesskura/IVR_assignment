@@ -144,8 +144,8 @@ class image_converter:
         z_cord = self.detect_pos_z(self.cv_image1,color_sphere)
         return [x_cord,y_cord,z_cord]
   
-  #calculate joint angles by using least squares method
-  def calcJoint_angles(self,thetas):
+  #calculate translation matrices by using rotations and translations in x or y
+  def calcTrans(self,thetas):
         #calculate translation matrices
        trans23 = np.array([[1,0,0,0],
        [0,np.cos(thetas[0]),-np.sin(thetas(0)),0],
@@ -160,6 +160,17 @@ class image_converter:
        [0,np.cos(thetas[2]),-np.sin(thetas[2]),0]
        [0,np.sin(thetas[2]),np.cos(thetas[2],3)]
        [0,0,0,1]])
+       trans13 = np.matmul(trans12,trans23)
+       trans14 = np.matmul(trans13,trans34)
+       trans15 = np.matmul(trans15,trans45)
+       return trans15
+
+  #calculate angles using least squares method
+  def calc_angles(self):
+        res = least_squares(self.calcTrans, self.current_angles,
+        bounds=([-np.pi / 2, -np.pi / 2, -np.pi / 2], [np.pi / 2, np.pi / 2, np.pi / 2]))
+        self.current_angles = res.x
+        return res.x
 
 
 
