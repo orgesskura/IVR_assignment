@@ -181,7 +181,7 @@ class image_converter:
        real_ry = self.get_coordinates(self.detect_red)[1]
        real_rz = self.get_coordinates(self.detect_red)[2]
        #get error from calculated position and one calculated with computer vision
-       return [calc_gx-real_gx,calc_gy-real_gy,calc_gz-real_gz,calc_rx-real_rx,calc_ry - real_ry,calc_rz - real_rz]
+       return sum[calc_gx-real_gx,calc_gy-real_gy,calc_gz-real_gz,calc_rx-real_rx,calc_ry - real_ry,calc_rz - real_rz]
 
 
 
