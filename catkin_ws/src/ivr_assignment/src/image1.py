@@ -160,10 +160,27 @@ class image_converter:
        [0,np.cos(thetas[2]),-np.sin(thetas[2]),0]
        [0,np.sin(thetas[2]),np.cos(thetas[2],3)]
        [0,0,0,1]])
+       #calculate translation matrices from one frame to another
        trans13 = np.matmul(trans12,trans23)
        trans14 = np.matmul(trans13,trans34)
        trans15 = np.matmul(trans15,trans45)
-       return trans15
+       #calculate positon taken from translation matrices vs ones taken by computer vision so that we pass it as argument to least squares
+       calc_gx = trans14[0,3]
+       calc_gy = trans14[1,3]
+       calc_gz = trans14[2,3]
+       real_gx = self.get_coordinates(self.detect_green)[0]
+       real_gy = self.get_coordinates(self.detect_green)[1]
+       real_gz = self.get_coordinates(self.detect_green)[2]
+       calc_rx = trans15[0,3]
+       calc_ry = trans15[1,3]
+       calc_rz = trans15[2,3]
+       real_rx = self.get_coordinates(self.detect_red)[0]
+       real_ry = self.get_coordinates(self.detect_red)[1]
+       real_rz = self.get_coordinates(self.detect_red)[2]
+       #get error from calculated position and one calculated with computer vision
+       return [calc_gx-real_gx,calc_gy-real_gy,calc_gz-real_gz,calc_rx-real_rx,calc_ry - real_ry,calc_rz - real_rz]
+
+
 
   #calculate angles using least squares method
   def calc_angles(self):
@@ -200,7 +217,7 @@ class image_converter:
     joint4_val.data = (np.pi/2) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
 
     self.joints = Float64MultiArray()
-    x = self.calcJoint_angles()
+    x = self.calc_angles()
     self.joints.data = x
 
     im1=cv2.imshow('window1', self.cv_image1)
