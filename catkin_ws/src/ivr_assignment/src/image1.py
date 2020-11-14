@@ -38,7 +38,7 @@ class image_converter:
     self.joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
     
     #save current angles so we can use least squares
-    self.current_angles = [0,0,0]
+    self.current_angles = np.array([0,0,0])
 
 
     # record the begining time
@@ -144,39 +144,47 @@ class image_converter:
         return [x_cord,y_cord,z_cord]
   
   #calculate translation matrices by using rotations and translations in x or y
-  def calcTrans(self,thetas):
-        #calculate translation matrices
-       trans23 = np.array([[1,0,0,0],
+  # i calculate 1 by 1 due to np array properties
+  def calcTrans12(self,thetas):
+        return np.array([[1,0,0,0],[0,1,0,0],[0,0,1,2.5],[0,0,0,1]])
+
+  def calcTrans23(self,thetas):
+        return np.array([[1,0,0,0],
        [0,np.cos(thetas[0]),-np.sin(thetas(0)),0],
        [0,np.sin(thetas[0]),np.cos(thetas[0]),0],
        [0,0,0,1]])
-       trans12 = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,2.5],[0,0,0,1]])
-       trans34 = np.array([[np.cos(thetas[1]),0,np.sin(thetas[1]),0],
+
+  def calcTrans34(self,thetas):
+        return np.array([[np.cos(thetas[1]),0,np.sin(thetas[1]),0],
        [0,1,0,0],
        [-np.sin(thetas[1]),0,np.cos(thetas[1]),3.5],
        [0,0,0,1]])
-       trans45 = np.array([[1,0,0,0],
+
+  def calcTrans45(self,thetas):
+        return np.array([[1,0,0,0],
        [0,np.cos(thetas[2]),-np.sin(thetas[2]),0],
        [0,np.sin(thetas[2]),np.cos(thetas[2],3)],
        [0,0,0,1]])
-       #calculate translation matrices from one frame to another
-       trans13 = np.matmul(trans12,trans23)
-       trans14 = np.matmul(trans13,trans34)
-       trans15 = np.matmul(trans15,trans45)
-       return trans14,trans15
+
+  def calcTrans14(self,thetas):
+        trans13 = np.matmul(self.trans12(thetas), self.trans23(thetas))
+        return np.matmul(trans13, self.trans34(thetas))
+
+  def calcTrans15(self,thetas):
+        return np.matmul(self.trans14(thetas), self.trans45(thetas))
+
 
   def optimize_func(self,thetas):
        #calculate positon taken from translation matrices vs ones taken by computer vision so that we pass it as argument to least squares
-       trans14,trans15 = self.calcTrans(thetas)
-       calc_gx = trans14[0,3]
-       calc_gy = trans14[1,3]
-       calc_gz = trans14[2,3]
+       calc_gx = self.trans14[0,3]
+       calc_gy = self.trans14[1,3]
+       calc_gz = self.trans14[2,3]
        real_gx = self.get_coordinates(self.detect_green)[0]
        real_gy = self.get_coordinates(self.detect_green)[1]
        real_gz = self.get_coordinates(self.detect_green)[2]
-       calc_rx = trans15[0,3]
-       calc_ry = trans15[1,3]
-       calc_rz = trans15[2,3]
+       calc_rx = self.trans15[0,3]
+       calc_ry = self.trans15[1,3]
+       calc_rz = self.trans15[2,3]
        real_rx = self.get_coordinates(self.detect_red)[0]
        real_ry = self.get_coordinates(self.detect_red)[1]
        real_rz = self.get_coordinates(self.detect_red)[2]
