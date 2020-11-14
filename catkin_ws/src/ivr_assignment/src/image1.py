@@ -120,20 +120,20 @@ class image_converter:
   #detect y-coordinate given the image and the color we want to detect
   def detect_pos_y(self,image,color_sphere):
     a = self.pixel2meter(image)
-    dist = color_sphere(image) - self.detect_yellow()
+    dist = color_sphere(image) - self.detect_yellow(image)
     return a * dist[0]
 
 
   #detect y-coordinate given an image and the color we want to detect
   def detect_pos_z(self,image,color_sphere):
     a = self.pixel2meter(image)
-    dist = color_sphere(image) - self.detect_yellow()
+    dist = color_sphere(image) - self.detect_yellow(image)
     return a * dist[1]
 
   # detect x-coordinate given an image and the color we want to detect
   def detect_pos_x(self,image,color_sphere):
     a = self.pixel2meter(image)
-    dist = color_sphere(image) - self.detect_yellow()
+    dist = color_sphere(image) - self.detect_yellow(image)
     return a * dist[0]
   
   #get xyz coordinates for a colour sphere
@@ -150,7 +150,7 @@ class image_converter:
 
   def calcTrans23(self,thetas):
         return np.array([[1,0,0,0],
-       [0,np.cos(thetas[0]),-np.sin(thetas(0)),0],
+       [0,np.cos(thetas[0]),-np.sin(thetas[0]),0],
        [0,np.sin(thetas[0]),np.cos(thetas[0]),0],
        [0,0,0,1]])
 
@@ -163,39 +163,41 @@ class image_converter:
   def calcTrans45(self,thetas):
         return np.array([[1,0,0,0],
        [0,np.cos(thetas[2]),-np.sin(thetas[2]),0],
-       [0,np.sin(thetas[2]),np.cos(thetas[2],3)],
+       [0,np.sin(thetas[2]),np.cos(thetas[2]),3],
        [0,0,0,1]])
 
   def calcTrans14(self,thetas):
-        trans13 = np.matmul(self.trans12(thetas), self.trans23(thetas))
-        return np.matmul(trans13, self.trans34(thetas))
+        trans13 = np.matmul(self.calcTrans12(thetas), self.calcTrans23(thetas))
+        return np.matmul(trans13, self.calcTrans34(thetas))
 
   def calcTrans15(self,thetas):
-        return np.matmul(self.trans14(thetas), self.trans45(thetas))
+        return np.matmul(self.calcTrans14(thetas), self.calcTrans45(thetas))
 
 
   def optimize_func(self,thetas):
        #calculate positon taken from translation matrices vs ones taken by computer vision so that we pass it as argument to least squares
-       calc_gx = self.trans14[0,3]
-       calc_gy = self.trans14[1,3]
-       calc_gz = self.trans14[2,3]
+       calc_gx = self.calcTrans14(thetas)[0,3]
+       calc_gy = self.calcTrans14(thetas)[1,3]
+       calc_gz = self.calcTrans14(thetas)[2,3]
        real_gx = self.get_coordinates(self.detect_green)[0]
        real_gy = self.get_coordinates(self.detect_green)[1]
        real_gz = self.get_coordinates(self.detect_green)[2]
-       calc_rx = self.trans15[0,3]
-       calc_ry = self.trans15[1,3]
-       calc_rz = self.trans15[2,3]
+       calc_rx = self.calcTrans15(thetas)[0,3]
+       calc_ry = self.calcTrans15(thetas)[1,3]
+       calc_rz = self.calcTrans15(thetas)[2,3]
        real_rx = self.get_coordinates(self.detect_red)[0]
        real_ry = self.get_coordinates(self.detect_red)[1]
        real_rz = self.get_coordinates(self.detect_red)[2]
        #get error from calculated position and one calculated with computer vision
-       return sum[calc_gx-real_gx,calc_gy-real_gy,calc_gz-real_gz,calc_rx-real_rx,calc_ry - real_ry,calc_rz - real_rz]
-
+       return sum([calc_gx-real_gx,calc_gy-real_gy,calc_gz-real_gz,calc_rx-real_rx,calc_ry - real_ry,calc_rz - real_rz])
+      # real_green = self.get_coordinates(self.detect_green)
+      # real_red = self.get_coordinates(self.detect_red)
+      # return sum[np.sum(calc_green-real_green),np.sum(calc_red-real_red)]
 
 
   #calculate angles using least squares method
   def calc_angles(self):
-        res = least_squares(self.calcTrans, self.current_angles,
+        res = least_squares(self.optimize_func, self.current_angles,
         bounds=([-np.pi / 2, -np.pi / 2, -np.pi / 2], [np.pi / 2, np.pi / 2, np.pi / 2]))
         self.current_angles = res.x
         return res.x
@@ -207,7 +209,7 @@ class image_converter:
 
   
 
-  # Recieve data from camera 1, process it, and use it
+  # Recieve data from camera 1 and camera 2, process them, and use them
   def callback1(self,data1,data2):
     # Recieve the image
     try:
