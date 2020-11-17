@@ -11,6 +11,7 @@ from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 import message_filters
 from scipy.optimize import least_squares
+from numpy import sin,cos
 
 class image_converter:
 
@@ -38,7 +39,7 @@ class image_converter:
     self.joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
     
     #save current angles so we can use least squares
-    self.current_angles = np.array([0,0,0])
+    self.current_angles = [0,0,0]
 
 
     # record the begining time
@@ -127,7 +128,7 @@ class image_converter:
   #detect y-coordinate given an image and the color we want to detect
   def detect_pos_z(self,image,color_sphere):
     a = self.pixel2meter(image)
-    dist = color_sphere(image) - self.detect_yellow(image)
+    dist = -color_sphere(image) + self.detect_yellow(image)
     return a * dist[1]
 
   # detect x-coordinate given an image and the color we want to detect
@@ -155,20 +156,22 @@ class image_converter:
        [0,0,0,1]])
 
   def calcTrans34(self,thetas):
-        return np.array([[np.cos(thetas[1]),0,np.sin(thetas[1]),0],
+        return np.array([[np.cos(thetas[1]),0,-np.sin(thetas[1]),3.5*np.sin(thetas[1])],
        [0,1,0,0],
-       [-np.sin(thetas[1]),0,np.cos(thetas[1]),3.5],
+       [np.sin(thetas[1]),0,np.cos(thetas[1]),3.5* np.cos(thetas[1])],
        [0,0,0,1]])
 
   def calcTrans45(self,thetas):
         return np.array([[1,0,0,0],
-       [0,np.cos(thetas[2]),-np.sin(thetas[2]),0],
-       [0,np.sin(thetas[2]),np.cos(thetas[2]),3],
+       [0,np.cos(thetas[2]),-np.sin(thetas[2]),-3 * np.sin(thetas[2])],
+       [0,np.sin(thetas[2]),np.cos(thetas[2]),3*np.cos(thetas[2])],
        [0,0,0,1]])
 
+  def calcTrans13(self,thetas):
+        return np.matmul(self.calcTrans12(thetas),self.calcTrans23(thetas))
+
   def calcTrans14(self,thetas):
-        trans13 = np.matmul(self.calcTrans12(thetas), self.calcTrans23(thetas))
-        return np.matmul(trans13, self.calcTrans34(thetas))
+        return np.matmul(self.calcTrans13(thetas), self.calcTrans34(thetas))
 
   def calcTrans15(self,thetas):
         return np.matmul(self.calcTrans14(thetas), self.calcTrans45(thetas))
@@ -176,6 +179,7 @@ class image_converter:
 
   def optimize_func(self,thetas):
        #calculate positon taken from translation matrices vs ones taken by computer vision so that we pass it as argument to least squares
+       #calculate till green as well since we need enough equations to come up with solutions
        calc_gx = self.calcTrans14(thetas)[0,3]
        calc_gy = self.calcTrans14(thetas)[1,3]
        calc_gz = self.calcTrans14(thetas)[2,3]
@@ -189,20 +193,55 @@ class image_converter:
        real_ry = self.get_coordinates(self.detect_red)[1]
        real_rz = self.get_coordinates(self.detect_red)[2]
        #get error from calculated position and one calculated with computer vision
-       return sum([calc_gx-real_gx,calc_gy-real_gy,calc_gz-real_gz,calc_rx-real_rx,calc_ry - real_ry,calc_rz - real_rz])
+       return [calc_gx - real_gx,calc_gy - real_gy,calc_gz - real_gz,calc_rx - real_rx,calc_ry - real_ry, calc_rz - real_rz]
       # real_green = self.get_coordinates(self.detect_green)
       # real_red = self.get_coordinates(self.detect_red)
       # return sum[np.sum(calc_green-real_green),np.sum(calc_red-real_red)]
 
+  def functions(self,thetas):
+        
+        f = [0,0,0]
+        f[0] = self.calcTrans14(thetas)[0,3] - self.get_coordinates(self.detect_green)[0]
+        + self.calcTrans14(thetas)[1,3] - self.get_coordinates(self.detect_green)[1]
+        +self.calcTrans14(thetas)[2,3] - self.get_coordinates(self.detect_green)[2]
+        f[1] = self.calcTrans15(thetas)[0,3] - self.get_coordinates(self.detect_red)[0]
+        + self.calcTrans15(thetas)[1,3] - self.get_coordinates(self.detect_red)[1]
+        +self.calcTrans15(thetas)[2,3] - self.get_coordinates(self.detect_red)[2]
+        f[2] = self.calcTrans13(thetas)[0,3] - self.get_coordinates(self.detect_blue)[0]
+        + self.calcTrans13(thetas)[1,3] - self.get_coordinates(self.detect_blue)[1]
+        +self.calcTrans13(thetas)[2,3] - self.get_coordinates(self.detect_blue)[2]
+
+        return f
 
   #calculate angles using least squares method
-  def calc_angles(self):
-        res = least_squares(self.optimize_func, self.current_angles,
-        bounds=([-np.pi / 2, -np.pi / 2, -np.pi / 2], [np.pi / 2, np.pi / 2, np.pi / 2]))
-        self.current_angles = res.x
+  def calc_angles_leastSquares(self):
+        bounds = (
+        np.array([-np.pi/2, -np.pi/2, -np.pi/2]),
+        np.array([ np.pi/2, np.pi/2, np.pi/2]),
+                )
+        res = least_squares(self.functions, [0,0,0],
+        bounds =bounds)
         return res.x
 
-
+  # calculate angles in naive way
+  def calc_angles_naive(self):
+        a = self.pixel2meter(self.cv_image1)
+        b = self.pixel2meter(self.cv_image2)
+        yellow1 = a*self.detect_yellow(self.cv_image1)
+        yellow2 = b*self.detect_yellow(self.cv_image2)
+        blue1 = a * self.detect_blue(self.cv_image1)
+        blue2 = b * self.detect_blue(self.cv_image2)
+        green1 = a*(self.detect_green(self.cv_image1))
+        green2 = b*(self.detect_green(self.cv_image2))
+        red1 = a* self.detect_red(self.cv_image1)
+        red2 = b * self.detect_red(self.cv_image2)
+        #calculate rotation around x-axis using camera 1
+        j2=np.arctan2(blue1[0]-green1[0],blue1[1]-green1[1])
+        #calculate rotation around y-axis using camera 2
+        j3 = -(np.arctan2(blue2[0]-green2[0],blue2[1]-green2[1]) )
+        #calculate rotation around x-axis using camera 1 for last angles since rotation around y in camera 1 does not change angles
+        j4 = np.arctan2(green1[0]-red1[0],green1[1]-red1[1])-j2
+        return [j2,j3,j4]
 
         
 
@@ -230,12 +269,12 @@ class image_converter:
     joint4_val.data = (np.pi/2) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
 
     self.joints = Float64MultiArray()
-    x = self.calc_angles()
+    x = self.calc_angles_naive()
     self.joints.data = x
 
     im1=cv2.imshow('window1', self.cv_image1)
     cv2.waitKey(1)
-    # Publish the results
+    #Publish the results
     try: 
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
       self.joint2_pub.publish(joint2_val)
