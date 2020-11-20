@@ -20,7 +20,7 @@ class image_converter:
     # initialize the node named image_processing
     rospy.init_node('image_processing', anonymous=True)
     # initialize a publisher to send images from camera1 to a topic named image_topic1
-    self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 1)
+    self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 10)
     # initialize a subscriber to recieve messages rom a topic named /robot/camera1/image_raw and use callback function to recieve data
     self.image_sub1 = message_filters.Subscriber("/camera1/robot/image_raw",Image)
     #receive image from second camera
@@ -42,16 +42,20 @@ class image_converter:
     self.current_angles = [0,0,0]
     #hardcoded them so that i do not calculate ratio every time
     self.pixel2meter_image1 = 0.041666666666666664
-    self.pixel2meter_image2 = 0.04304590452336675
+    self.pixel2meter_image2 = 0.041643537790798095
 
     # record the begining time
     self.time_initial= rospy.get_time()
 
     #record last detected colour(maybe implement it later)
-    self.last_red =np.array([0,0])
-    self.last_green =np.array([0,0])
-    self.last_blue =np.array([0,0])
-    self.last_orange =np.array([0,0])
+    self.last_red_image1  =np.array([0,0])
+    self.last_green_image1 =np.array([0,0])
+    self.last_blue_image1 =np.array([0,0])
+    self.last_orange_image1 =np.array([0,0])
+    self.last_red_image2  =np.array([0,0])
+    self.last_green_image2 =np.array([0,0])
+    self.last_blue_image2 =np.array([0,0])
+    self.last_orange_image2 =np.array([0,0])
 
   # In this method you can focus on detecting the centre of the red circle
   def detect_red(self,image):
@@ -67,11 +71,19 @@ class image_converter:
       if M['m00'] != 0 :
             cx = int(M['m10'] / M['m00'])
             cy = int(M['m01'] / M['m00'])
+            if self.cv_image1 is image:
+                  self.last_red_image1 = np.array([cx,cy])
+                  return np.array([cx, cy])
+            else:
+                  self.last_red_image2 = np.array([cx,cy])
+                  return np.array([cx, cy])
       #this is in case red is blocked by green
       else:
-            cx = self.detect_green(image)[0]
-            cy = self.detect_green(image)[1]
-      return np.array([cx, cy])
+            if self.cv_image1 is image:
+                  return self.last_red_image1
+            else :
+                  return self.last_red_image2
+      
 
       
 
@@ -81,14 +93,23 @@ class image_converter:
       kernel = np.ones((5, 5), np.uint8)
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
-      if(M['m00'] != 0):
+      # Calculate pixel coordinates for the centre of the blob
+      if M['m00'] != 0 :
             cx = int(M['m10'] / M['m00'])
             cy = int(M['m01'] / M['m00'])
-      #in case blue is blocked by blue
+            if self.cv_image1 is image:
+                  self.last_green_image1 = np.array([cx,cy])
+                  return np.array([cx, cy])
+            else:
+                  self.last_green_image2 = np.array([cx,cy])
+                  return np.array([cx, cy])
+      #this is in case red is blocked by green
       else:
-            cx = self.detect_blue(image)[0]
-            cy = self.detect_blue(image)[1]
-      return np.array([cx, cy])
+            if self.cv_image1 is image:
+                  return self.last_green_image1
+            else :
+                  return self.last_green_image2
+      
 
 
   # Detecting the centre of the blue circle
@@ -97,15 +118,23 @@ class image_converter:
       kernel = np.ones((5, 5), np.uint8)
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
-      if(M['m00'] != 0):
+      # Calculate pixel coordinates for the centre of the blob
+      if M['m00'] != 0 :
             cx = int(M['m10'] / M['m00'])
             cy = int(M['m01'] / M['m00'])
-      #in case blue is blocked by green
+            if self.cv_image1 is image:
+                  self.last_blue_image1 = np.array([cx,cy])
+                  return np.array([cx, cy])
+            else:
+                  self.last_blue_image2 = np.array([cx,cy])
+                  return np.array([cx, cy])
+      #this is in case red is blocked by green
       else:
-            cx = self.detect_green(image)[0]
-            cy = self.detect_green(image)[1]
-            
-      return np.array([cx, cy])
+            if self.cv_image1 is image:
+                  return self.last_blue_image1
+            else :
+                  return self.last_blue_image2
+      
 
   
   # Detecting the centre of the yellow circle
@@ -132,6 +161,7 @@ class image_converter:
     b = self.pixel2meter_image2
     dist1 = -color_sphere(self.cv_image1) + self.detect_yellow(self.cv_image1)
     dist2 = -color_sphere(self.cv_image2) + self.detect_yellow(self.cv_image2)
+    #return a * dist1[1]
     return (a * dist1[1] + b* dist2[1])/2
 
   # detect x-coordinate given an image and the color we want to detect
@@ -154,19 +184,19 @@ class image_converter:
 
   def calcTrans23(self,thetas):
         return np.array([[1,0,0,0],
-       [0,np.cos(thetas[0]),np.sin(thetas[0]),0],
-       [0,-np.sin(thetas[0]),np.cos(thetas[0]),0],
+       [0,np.cos(thetas[0]),-np.sin(thetas[0]),0],
+       [0,np.sin(thetas[0]),np.cos(thetas[0]),0],
        [0,0,0,1]])
 
   def calcTrans34(self,thetas):
-        return np.array([[np.cos(thetas[1]),0,np.sin(thetas[1]),-3.5*np.sin(thetas[1])],
+        return np.array([[np.cos(thetas[1]),0,np.sin(thetas[1]),3.5*np.sin(thetas[1])],
        [0,1,0,0],
        [-np.sin(thetas[1]),0,np.cos(thetas[1]),3.5* np.cos(thetas[1])],
        [0,0,0,1]])
 
   def calcTrans45(self,thetas):
         return np.array([[1,0,0,0],
-       [0,np.cos(thetas[2]),-np.sin(thetas[2]),3 * np.sin(thetas[2])],
+       [0,np.cos(thetas[2]),-np.sin(thetas[2]),-3 * np.sin(thetas[2])],
        [0,np.sin(thetas[2]),np.cos(thetas[2]),3*np.cos(thetas[2])],
        [0,0,0,1]])
 
@@ -206,13 +236,13 @@ class image_converter:
 
   def functions(self,thetas):
         
-        f = [0,0]
+        f = [0,0,0,0,0,0]
         f[0] = self.calcTrans14(thetas)[0,3] - self.get_coordinates(self.detect_green)[0]
-        + self.calcTrans14(thetas)[1,3] - self.get_coordinates(self.detect_green)[1]
-        +self.calcTrans14(thetas)[2,3] - self.get_coordinates(self.detect_green)[2]
-        f[1] = self.calcTrans15(thetas)[0,3] - self.get_coordinates(self.detect_red)[0]
-        + self.calcTrans15(thetas)[1,3] - self.get_coordinates(self.detect_red)[1]
-        +self.calcTrans15(thetas)[2,3] - self.get_coordinates(self.detect_red)[2]
+        f[1] = self.calcTrans14(thetas)[1,3] - self.get_coordinates(self.detect_green)[1]
+        f[2] = self.calcTrans14(thetas)[2,3] - self.get_coordinates(self.detect_green)[2]
+        f[3] = self.calcTrans15(thetas)[0,3] - self.get_coordinates(self.detect_red)[0]
+        f[4] = self.calcTrans15(thetas)[1,3] - self.get_coordinates(self.detect_red)[1]
+        f[5] = self.calcTrans15(thetas)[2,3] - self.get_coordinates(self.detect_red)[2]
 
         return f
 
@@ -225,7 +255,8 @@ class image_converter:
         res = least_squares(self.functions, self.current_angles,
         bounds =bounds)
         self.current_angles = res.x
-        return res.x
+        print(res.cost)
+        return res
 
   # calculate angles in naive way
   def calc_angles_naive(self):
@@ -241,12 +272,22 @@ class image_converter:
         red2 = b * self.detect_red(self.cv_image2)
         #calculate rotation around x-axis using camera 1
         j2=np.arctan2(blue1[0]-green1[0],blue1[1]-green1[1])
+        if j2 > np.pi/2 :
+              a = np.pi-j2
+              b = np.pi/2 - a
+              j2 = np.pi/2 - b
+        elif j2 < -np.pi/2:
+              a = j2 + np.pi
+              b = np.pi/2 - a
+              j2 = -np.pi/2 + b
+        else :
+              j2 = j2
+        #do this since arctan2 return angles in [-pi,pi] range
         #calculate rotation around y-axis using camera 2
         j3 = -(np.arctan2(blue2[0]-green2[0],blue2[1]-green2[1]) )
         #calculate rotation around x-axis using camera 1 for last angles since rotation around y in camera 1 does not change angles
         j4 = np.arctan2(green1[0]-red1[0],green1[1]-red1[1])-j2
-        return np.array([j2,j3,j4])
-
+        return [j2,j3,j4]
         
 
 
@@ -271,20 +312,21 @@ class image_converter:
     joint3_val.data = (np.pi/2) * np.sin((np.pi/18) * (rospy.get_time()-self.time_initial))
     joint4_val = Float64()
     joint4_val.data = (np.pi/3) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
-
-#     self.joints = Float64MultiArray()
-#     x = self.calc_angles_naive()
-#     self.joints.data = x
+    
+    self.joints = Float64MultiArray()
+    rs = self.calc_angles_naive()
+    self.joints.data = rs
+#     print(rs.cost)
 
 #     print(self.pixel2meter(self.cv_image1))
 #     print(self.pixel2meter(self.cv_image2))
 
-    im1=cv2.imshow('window1', self.cv_image2)
-    cv2.waitKey(1)
+#     im1=cv2.imshow('window1', self.cv_image2)
+#     cv2.waitKey(1)
     #Publish the results
     try: 
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
-      # self.joints_pub.publish(self.joints)
+      self.joints_pub.publish(self.joints)
       self.joint2_pub.publish(joint2_val)
       self.joint3_pub.publish(joint3_val)
       self.joint4_pub.publish(joint4_val)
