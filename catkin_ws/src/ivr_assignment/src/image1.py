@@ -170,11 +170,11 @@ class image_converter:
     #get width and height of template in order to get center of matching
     width, height = template.shape[::-1] 
     #template matching between threshold and template i have. Code is adapted from opencv python tutorials
-    matching = cv2.matchTemplate(thresh, template, 1) 
+    matching = cv2.matchTemplate(thresh, template, 1)
     #Get result of matching the template with thresholded image
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(matching) 
-
     #Returns the centre of the orange sphere
+    print([min_loc[0] + width/2, min_loc[1] + height/2])
     return np.array([min_loc[0] + width/2, min_loc[1] + height/2]) 
 
 
@@ -299,22 +299,22 @@ class image_converter:
     joint4_val.data = (np.pi/3) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
 
     
-#     self.joints = Float64MultiArray()
-#     self.joints.data = self.calc_angles_naive()
+    self.joints = Float64MultiArray()
+    self.joints.data = self.calc_angles_naive()
 #     im1=cv2.imshow('window1', self.cv_image2)
 #     cv2.waitKey(1)
 #     print(self.get_coordinates(self.detect_orange_sphere))
 
-    self.target_pos = Float64MultiArray()
-    self.target_pos.data = self.get_coordinates(self.detect_orange_sphere)
+#     self.target_pos = Float64MultiArray()
+#     self.target_pos.data = self.get_coordinates(self.detect_orange_sphere)
     #Publish the results
     try: 
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
-      self.target_pub.publish(self.target_pos)
-      # self.joints_pub.publish(self.joints)
-      # self.joint2_pub.publish(joint2_val)
-      # self.joint3_pub.publish(joint3_val)
-      # self.joint4_pub.publish(joint4_val)
+      # self.target_pub.publish(self.target_pos)
+      self.joints_pub.publish(self.joints)
+      self.joint2_pub.publish(joint2_val)
+      self.joint3_pub.publish(joint3_val)
+      self.joint4_pub.publish(joint4_val)
       
     except CvBridgeError as e:
       print(e)
