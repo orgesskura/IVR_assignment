@@ -164,11 +164,11 @@ class image_converter:
 
   def detect_orange_sphere(self,image):
     #get template in a black and white format as it is better like that for matching
-    template =cv2.imread("~/catkin_ws/template-sphere.png", 0) 
+    template =cv2.imread("template.png", 0) 
     #get orange thresholding
-    thresh = cv2.inRange(image, (50,100,100), (100,255,255))
+    thresh = cv2.inRange(image, (0,50,100), (12,80,150))
     #template matching between threshold and template i have. Code is adapted from opencv python tutorials
-    matching = cv2.matchTemplate(thresh, template, cv2.TM_CCOEFF) 
+    matching = cv2.matchTemplate(thresh, template, 1) 
     #Get result of matching the template with thresholded image
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(matching) 
     #get width and height of template in order to get center of matching
@@ -298,15 +298,18 @@ class image_converter:
     joint4_val.data = (np.pi/3) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
 
     
-    self.joints = Float64MultiArray()
-    self.joints.data = self.calc_angles_naive()
+#     self.joints = Float64MultiArray()
+#     self.joints.data = self.calc_angles_naive()
+    im1=cv2.imshow('window1', self.cv_image2)
+    cv2.waitKey(1)
+    print(self.get_coordinates(self.detect_orange_sphere))
     #Publish the results
     try: 
-      # self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
-      self.joints_pub.publish(self.joints)
-      self.joint2_pub.publish(joint2_val)
-      self.joint3_pub.publish(joint3_val)
-      self.joint4_pub.publish(joint4_val)
+      self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
+      # self.joints_pub.publish(self.joints)
+      # self.joint2_pub.publish(joint2_val)
+      # self.joint3_pub.publish(joint3_val)
+      # self.joint4_pub.publish(joint4_val)
       
     except CvBridgeError as e:
       print(e)
