@@ -275,7 +275,91 @@ class image_converter:
         return [j2,j3,-j4]
         
 
+# Calculate the forward kinematics
+def forward_kinematics(self,image):
+    #The published joints detected by the vision are placed in array
+    joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
 
+    #end effector matrix was derived using DH rules on paper first 
+    #the spaces in between signify the next row for readability
+    end_effector_matrix = np.array([
+    3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
+    3.5 * np.sin(joint[0])*np.sin(joint[1])+np.cos[joint[2]] +    
+    3   * np.sin(joint[0])*np.sin(joint[3])+np.cos(joint[1]) +
+    3.5 * sin(joint[2])+cos(joint[0]) ,
+
+    3   *(np.sin(joint[0])*np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
+    3.5 * np.sin(joint[0])*np.sin(joint[2]) +
+    -3.5* np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]) +
+    -3  * np.sin(joint[3])*np.cos(joint[0])*np.cos(joint[1]) ,
+
+    -3  * np.sin(joint[1])*np.sin(joint[3]) + 
+    3   * np.cos(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
+    3.5 * np.cos(joint[1])*np.cos(joint[2]) + 
+    2.5
+    ])
+    return end_effector_matrix
+
+
+# Calculate the robot Jacobian
+def calculate_jacobian(self,image):
+    #The published joints detected by the vision are placed in array
+    joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
+
+    jacobian = np.array([
+        [
+        #dx/theta1
+        3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) - np.sin(joint[2])*np.sin(joint[0])) * np.cos(joint[3]) +
+        3.5 * np.cos(joint[0])*np.sin(joint[1])+np.cos[joint[2]] +    
+        3   * np.cos(joint[0])*np.sin(joint[3])+np.cos(joint[1]) +
+        -3.5 * sin(joint[2])+sin(joint[0]) ,
+        #dx/theta2
+        3   *np.sin(joint[0])*np.cos(joint[1])*np.cos(joint[2]) * np.cos(joint[3]) +
+        3.5 * np.sin(joint[0])*np.cos(joint[1])+np.cos[joint[2]] +    
+        -3   * np.sin(joint[0])*np.sin(joint[3])+np.sin(joint[1]) ,
+        #dx/theta3
+        3   *(-np.sin(joint[0])*np.sin(joint[1])*np.sin(joint[2]) + np.cos(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
+        -3.5 * np.sin(joint[0])*np.sin(joint[1])+np.sin[joint[2]] +    
+        3.5 * sin(joint[2])+cos(joint[0]) ,
+        #dx/theta4
+        -3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.sin(joint[3]) +
+        3   * np.sin(joint[0])*np.sin(joint[3])+np.cos(joint[1]) ,
+        ],
+        [
+        #dy/theta1
+        3   *(np.cos(joint[0])* np.sin(joint[2]) + np.sin(joint[1])*np.sin(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
+        3.5 * np.cos(joint[0])* np.sin(joint[2]) +
+        3.5 * np.sin(joint[1])* np.sin(joint[0])*np.cos(joint[2]) +
+        3   * np.sin(joint[3])* np.sin(joint[0])*np.cos(joint[1]) ,
+        #dy/theta2        
+        3   *( - np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
+        -3.5* np.cos(joint[1])* np.cos(joint[0])*np.cos(joint[2]) +
+        3  * np.sin(joint[3])* np.cos(joint[0])*np.sin(joint[1]) ,
+        #dy/theta3
+        3   *(np.sin(joint[0])* np.cos(joint[2]) - np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
+        -3.5* np.cos(joint[1])* np.cos(joint[0])*np.cos(joint[2]) +
+        3  * np.sin(joint[3])* np.cos(joint[0])*np.sin(joint[1]) ,
+        #dy/theta4
+        -3   *(np.sin(joint[0])* np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.sin(joint[3]) +
+        -3  * np.cos(joint[3])* np.cos(joint[0])*np.cos(joint[1]) ,
+        ],
+        [
+        #dz/theta1
+        0,
+        #dz/theta2
+        -3  * np.cos(joint[1])*np.sin(joint[3]) + 
+        -3  * np.sin(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
+        -3.5* np.sin(joint[1])*np.cos(joint[2]) ,
+        #dz/theta3 
+        -3   * np.cos(joint[1])*np.sin(joint[2])*np.cos(joint[3])+
+        -3.5 * np.cos(joint[1])*np.sin(joint[2]) , 
+        #dz/theta4
+        -3  * np.sin(joint[1])*np.cos(joint[3]) + 
+        -3   * np.cos(joint[1])*np.cos(joint[2])*np.sin(joint[3])
+        ]
+    ])
+    return jacobian
+  
   
 
   # Recieve data from camera 1 and camera 2, process them, and use them
