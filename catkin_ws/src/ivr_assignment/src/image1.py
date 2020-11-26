@@ -185,6 +185,16 @@ class image_converter:
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(matching) 
     #Returns the centre of the orange sphere
     print([min_loc[0] + width/2, min_loc[1] + height/2])
+    if (sum(sum(thresh)) == 0):
+      if image is self.cv_image1:
+            return np.array(last_orange_image1)
+      else :
+            np.array(last_orange_image2)
+    else :
+      if image is self.cv_image1:
+                last_orange_image1 = [min_loc[0] + width/2, min_loc[1] + height/2]
+      else :
+                last_orange_image2 = [min_loc[0] + width/2, min_loc[1] + height/2]
     return np.array([min_loc[0] + width/2, min_loc[1] + height/2]) 
 
 
