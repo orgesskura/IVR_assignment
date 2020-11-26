@@ -71,10 +71,11 @@ class image_converter:
     self.time_previous_step = np.array([rospy.get_time()], dtype='float64')     
     self.time_previous_step2 = np.array([rospy.get_time()], dtype='float64')   
     # initialize error and derivative of error for trajectory tracking  
-    self.error = np.array([0.0,0.0], dtype='float64')  
-    self.error_d = np.array([0.0,0.0], dtype='float64')
+    self.error = np.array([0.0,0.0,0.0], dtype='float64')  
+    self.error_d = np.array([0.0,0.0,0.0], dtype='float64')
     # initialize a publisher to send robot end-effector position
-    self.end_effector_pub = rospy.Publisher("end_effector_prediction",Float64MultiArray, queue_size=10) 
+    self.end_effector_pub = rospy.Publisher("end_effector_prediction",Float64MultiArray, queue_size=10)
+
 
 
   # In this method you can focus on detecting the centre of the red circle
@@ -285,13 +286,13 @@ class image_converter:
         
 
 # Calculate the forward kinematics
-def forward_kinematics(self,joint):
+  def forward_kinematics(self,joint):
 
     #end effector matrix was derived using DH rules on paper first 
     #the spaces in between signify the next row for readability
     end_effector_matrix = np.array([
     3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-    3.5 * np.sin(joint[0])*np.sin(joint[1])*np.cos[joint[2]] +    
+    3.5 * np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) +    
     3   * np.sin(joint[0])*np.sin(joint[3])*np.cos(joint[1]) +
     3.5 * sin(joint[2])*cos(joint[0]) ,
 
@@ -309,7 +310,7 @@ def forward_kinematics(self,joint):
 
 
 # Calculate the robot Jacobian
-def calculate_jacobian(self):
+  def calculate_jacobian(self):
   #The published joints detected by the vision are placed in array
     angles = self.calc_angles()
     joint = [0,angles[0],angles[1],angles[2]]
@@ -318,16 +319,16 @@ def calculate_jacobian(self):
         [
         #dx/theta1
         3   *(np.cos(joint[0])*np.sin(joint[1])*np.cos(joint[2]) - np.sin(joint[2])*np.sin(joint[0])) * np.cos(joint[3]) +
-        3.5 * np.cos(joint[0])*np.sin(joint[1])+np.cos[joint[2]] +    
+        3.5 * np.cos(joint[0])*np.sin(joint[1])+np.cos(joint[2]) +    
         3   * np.cos(joint[0])*np.sin(joint[3])+np.cos(joint[1]) -
         3.5 * sin(joint[2])*sin(joint[0]) ,
         #dx/theta2
         3   *np.sin(joint[0])*np.cos(joint[1])*np.cos(joint[2]) * np.cos(joint[3]) +
-        3.5 * np.sin(joint[0])*np.cos(joint[1])+np.cos[joint[2]] +    
+        3.5 * np.sin(joint[0])*np.cos(joint[1])+np.cos(joint[2]) +    
         -3   * np.sin(joint[0])*np.sin(joint[3]) *np.sin(joint[1]) ,
         #dx/theta3
         3   *(-np.sin(joint[0])*np.sin(joint[1])*np.sin(joint[2]) + np.cos(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-        -3.5 * np.sin(joint[0])*np.sin(joint[1])+np.sin[joint[2]] +    
+        -3.5 * np.sin(joint[0])*np.sin(joint[1])+np.sin(joint[2]) +    
         3.5 * cos(joint[2])*cos(joint[0]) ,
         #dx/theta4
         -3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.sin(joint[3]) +
@@ -369,11 +370,11 @@ def calculate_jacobian(self):
     return jacobian
 
 #closed control as defined in the lab 3
-def control_closed(self):
+  def control_closed(self):
         # P gain
-    K_p = np.array([[10,0],[0,10]])
+    K_p = np.array([[0.3,0,0],[0,0.3,0],[0,0,0.3]])
     # D gain
-    K_d = np.array([[0.1,0],[0,0.1]])
+    K_d = np.array([[0.2,0,0],[0,0.2,0],[0,0,0.2]])
     # estimate time step
     cur_time = np.array([rospy.get_time()])
     dt = cur_time - self.time_previous_step
@@ -386,6 +387,7 @@ def control_closed(self):
     self.error_d = ((pos_d - pos) - self.error)/dt
     # estimate error
     self.error = pos_d-pos
+
     angles = self.calc_angles()
     q = np.array([0,angles[0],angles[1],angles[2]]) # estimate initial value of joints'
     J_inv = np.linalg.pinv(self.calculate_jacobian())  # calculating the psudeo inverse of Jacobian
@@ -396,7 +398,7 @@ def control_closed(self):
   
 
   # Recieve data from camera 1 and camera 2, process them, and use them
-def callback1(self,data1,data2):
+  def callback1(self,data1,data2):
     # Recieve the image
      try:
       self.cv_image1 = self.bridge.imgmsg_to_cv2(data1, "bgr8")
@@ -434,8 +436,7 @@ def callback1(self,data1,data2):
      self.joint3.data= q_d[2]
      self.joint4=Float64()
      self.joint4.data= q_d[3]
-
-     x_e = self.forward_kinematics(q_d)
+     x_e = self.forward_kinematics([0,q_d[1],q_d[2],q_d[3]])
      self.end_effector=Float64MultiArray()
      self.end_effector.data= x_e
     #Publish the results
