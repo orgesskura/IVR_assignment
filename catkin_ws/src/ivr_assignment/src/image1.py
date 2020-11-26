@@ -72,7 +72,9 @@ class image_converter:
     self.time_previous_step2 = np.array([rospy.get_time()], dtype='float64')   
     # initialize error and derivative of error for trajectory tracking  
     self.error = np.array([0.0,0.0], dtype='float64')  
-    self.error_d = np.array([0.0,0.0], dtype='float64') 
+    self.error_d = np.array([0.0,0.0], dtype='float64')
+    # initialize a publisher to send robot end-effector position
+    self.end_effector_pub = rospy.Publisher("end_effector_prediction",Float64MultiArray, queue_size=10) 
 
 
   # In this method you can focus on detecting the centre of the red circle
@@ -283,9 +285,7 @@ class image_converter:
         
 
 # Calculate the forward kinematics
-def forward_kinematics(self,image):
-    #The published joints detected by the vision are placed in array
-    joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
+def forward_kinematics(self,joint):
 
     #end effector matrix was derived using DH rules on paper first 
     #the spaces in between signify the next row for readability
@@ -311,7 +311,8 @@ def forward_kinematics(self,image):
 # Calculate the robot Jacobian
 def calculate_jacobian(self):
   #The published joints detected by the vision are placed in array
-    joint = self.calc_angles()
+    angles = self.calc_angles()
+    joint = [0,angles[0],angles[1],angles[2]]
     
     jacobian = np.array([
         [
@@ -368,7 +369,7 @@ def calculate_jacobian(self):
     return jacobian
 
 #closed control as defined in the lab 3
-def control_closed(self,image):
+def control_closed(self):
         # P gain
     K_p = np.array([[10,0],[0,10]])
     # D gain
@@ -385,7 +386,8 @@ def control_closed(self,image):
     self.error_d = ((pos_d - pos) - self.error)/dt
     # estimate error
     self.error = pos_d-pos
-    q = np.array([0,self.calc_angles()]) # estimate initial value of joints'
+    angles = self.calc_angles()
+    q = np.array([0,angles[0],angles[1],angles[2]]) # estimate initial value of joints'
     J_inv = np.linalg.pinv(self.calculate_jacobian())  # calculating the psudeo inverse of Jacobian
     dq_d =np.dot(J_inv, ( np.dot(K_d,self.error_d.transpose()) + np.dot(K_p,self.error.transpose()) ) )  # control input (angular velocity of joints)
     q_d = q + (dt * dq_d)  # control input (angular position of joints)
@@ -414,22 +416,37 @@ def callback1(self,data1,data2):
 #     joint4_val.data = (np.pi/3) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
 
     
-#     self.joints = Float64MultiArray()
+#     self.joints = Float64MultiArray()#The published joints detected by the vision are placed in array
+   
 #     self.joints.data = self.calc_angles()
 #     im1=cv2.imshow('window1', self.cv_image2)
 #     cv2.waitKey(1)
 #     print(self.get_coordinates(self.detect_orange_sphere))
 
-#     self.target_pos = Float64MultiArray()
-#     self.target_pos.data = self.get_coordinates(self.detect_orange_sphere)
+     self.target_pos = Float64MultiArray()
+     self.target_pos.data = self.get_coordinates(self.detect_orange_sphere)
+    # send control commands to joints (
+     q_d = self.control_closed()
+      #q_d = self.control_open(cv_image)
+     self.joint2=Float64()
+     self.joint2.data= q_d[1]
+     self.joint3=Float64()
+     self.joint3.data= q_d[2]
+     self.joint4=Float64()
+     self.joint4.data= q_d[3]
+
+     x_e = self.forward_kinematics(q_d)
+     self.end_effector=Float64MultiArray()
+     self.end_effector.data= x_e
     #Publish the results
      try: 
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
-      # self.target_pub.publish(self.target_pos)
+      self.target_pub.publish(self.target_pos)
+      self.end_effector_pub.publish(self.end_effector)
       # self.joints_pub.publish(self.joints)
-      # self.joint2_pub.publish(joint2_val)
-      # self.joint3_pub.publish(joint3_val)
-      # self.joint4_pub.publish(joint4_val)
+      self.joint2_pub.publish(self.joint2)
+      self.joint3_pub.publish(self.joint3)
+      self.joint4_pub.publish(self.joint4)
       
      except CvBridgeError as e:
       print(e)
