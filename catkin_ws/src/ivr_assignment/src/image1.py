@@ -220,7 +220,7 @@ class image_converter:
 
 
   # calculate angles in naive way
-  def calc_angles_naive(self):
+  def calc_angles(self):
         a = self.pixel2meter_image1
         b = self.pixel2meter_image2
         yellow1 = a*self.detect_yellow_image1
@@ -284,9 +284,9 @@ def forward_kinematics(self,image):
     #the spaces in between signify the next row for readability
     end_effector_matrix = np.array([
     3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-    3.5 * np.sin(joint[0])*np.sin(joint[1])+np.cos[joint[2]] +    
-    3   * np.sin(joint[0])*np.sin(joint[3])+np.cos(joint[1]) +
-    3.5 * sin(joint[2])+cos(joint[0]) ,
+    3.5 * np.sin(joint[0])*np.sin(joint[1])*np.cos[joint[2]] +    
+    3   * np.sin(joint[0])*np.sin(joint[3])*np.cos(joint[1]) +
+    3.5 * sin(joint[2])*cos(joint[0]) ,
 
     3   *(np.sin(joint[0])*np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
     3.5 * np.sin(joint[0])*np.sin(joint[2]) +
@@ -304,26 +304,26 @@ def forward_kinematics(self,image):
 # Calculate the robot Jacobian
 def calculate_jacobian(self,image):
     #The published joints detected by the vision are placed in array
-    joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
-
+    joint = self.calc_angles()
+    
     jacobian = np.array([
         [
         #dx/theta1
-        3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) - np.sin(joint[2])*np.sin(joint[0])) * np.cos(joint[3]) +
+        3   *(np.cos(joint[0])*np.sin(joint[1])*np.cos(joint[2]) - np.sin(joint[2])*np.sin(joint[0])) * np.cos(joint[3]) +
         3.5 * np.cos(joint[0])*np.sin(joint[1])+np.cos[joint[2]] +    
-        3   * np.cos(joint[0])*np.sin(joint[3])+np.cos(joint[1]) +
-        -3.5 * sin(joint[2])+sin(joint[0]) ,
+        3   * np.cos(joint[0])*np.sin(joint[3])+np.cos(joint[1]) -
+        3.5 * sin(joint[2])*sin(joint[0]) ,
         #dx/theta2
         3   *np.sin(joint[0])*np.cos(joint[1])*np.cos(joint[2]) * np.cos(joint[3]) +
         3.5 * np.sin(joint[0])*np.cos(joint[1])+np.cos[joint[2]] +    
-        -3   * np.sin(joint[0])*np.sin(joint[3])+np.sin(joint[1]) ,
+        -3   * np.sin(joint[0])*np.sin(joint[3]) *np.sin(joint[1]) ,
         #dx/theta3
         3   *(-np.sin(joint[0])*np.sin(joint[1])*np.sin(joint[2]) + np.cos(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
         -3.5 * np.sin(joint[0])*np.sin(joint[1])+np.sin[joint[2]] +    
-        3.5 * sin(joint[2])+cos(joint[0]) ,
+        3.5 * cos(joint[2])*cos(joint[0]) ,
         #dx/theta4
         -3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.sin(joint[3]) +
-        3   * np.sin(joint[0])*np.sin(joint[3])+np.cos(joint[1]) ,
+        3   * np.sin(joint[0])*np.cos(joint[3])*np.cos(joint[1]) ,
         ],
         [
         #dy/theta1
@@ -336,9 +336,9 @@ def calculate_jacobian(self,image):
         -3.5* np.cos(joint[1])* np.cos(joint[0])*np.cos(joint[2]) +
         3  * np.sin(joint[3])* np.cos(joint[0])*np.sin(joint[1]) ,
         #dy/theta3
-        3   *(np.sin(joint[0])* np.cos(joint[2]) - np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-        -3.5* np.cos(joint[1])* np.cos(joint[0])*np.cos(joint[2]) +
-        3  * np.sin(joint[3])* np.cos(joint[0])*np.sin(joint[1]) ,
+        3   *(np.sin(joint[0])* np.cos(joint[2]) + np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
+        3.5 * np.sin(joint[0]) * np.cos(joint[2])  +
+        3.5* np.sin(joint[1])* np.cos(joint[0])*np.sin(joint[2]) ,
         #dy/theta4
         -3   *(np.sin(joint[0])* np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.sin(joint[3]) +
         -3  * np.cos(joint[3])* np.cos(joint[0])*np.cos(joint[1]) ,
@@ -359,32 +359,34 @@ def calculate_jacobian(self,image):
         ]
     ])
     return jacobian
+
+
   
   
 
   # Recieve data from camera 1 and camera 2, process them, and use them
-  def callback1(self,data1,data2):
+def callback1(self,data1,data2):
     # Recieve the image
-    try:
+     try:
       self.cv_image1 = self.bridge.imgmsg_to_cv2(data1, "bgr8")
       self.cv_image2 = self.bridge.imgmsg_to_cv2(data2, "bgr8")
-    except CvBridgeError as e:
+     except CvBridgeError as e:
       print(e)
     
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)
 
     #Set the joint angles  according to the assignment requirements
-    joint2_val = Float64()
-    joint2_val.data = (np.pi/2) * np.sin((np.pi/15) * (rospy.get_time() - self.time_initial)) 
-    joint3_val = Float64()
-    joint3_val.data = (np.pi/2) * np.sin((np.pi/18) * (rospy.get_time()-self.time_initial))
-    joint4_val = Float64()
-    joint4_val.data = (np.pi/3) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
+#     joint2_val = Float64()
+#     joint2_val.data = (np.pi/2) * np.sin((np.pi/15) * (rospy.get_time() - self.time_initial)) 
+#     joint3_val = Float64()
+#     joint3_val.data = (np.pi/2) * np.sin((np.pi/18) * (rospy.get_time()-self.time_initial))
+#     joint4_val = Float64()
+#     joint4_val.data = (np.pi/3) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
 
     
-    self.joints = Float64MultiArray()
-    self.joints.data = self.calc_angles_naive()
+#     self.joints = Float64MultiArray()
+#     self.joints.data = self.calc_angles()
 #     im1=cv2.imshow('window1', self.cv_image2)
 #     cv2.waitKey(1)
 #     print(self.get_coordinates(self.detect_orange_sphere))
@@ -392,15 +394,15 @@ def calculate_jacobian(self,image):
 #     self.target_pos = Float64MultiArray()
 #     self.target_pos.data = self.get_coordinates(self.detect_orange_sphere)
     #Publish the results
-    try: 
+     try: 
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
       # self.target_pub.publish(self.target_pos)
-      self.joints_pub.publish(self.joints)
-      self.joint2_pub.publish(joint2_val)
-      self.joint3_pub.publish(joint3_val)
-      self.joint4_pub.publish(joint4_val)
+      # self.joints_pub.publish(self.joints)
+      # self.joint2_pub.publish(joint2_val)
+      # self.joint3_pub.publish(joint3_val)
+      # self.joint4_pub.publish(joint4_val)
       
-    except CvBridgeError as e:
+     except CvBridgeError as e:
       print(e)
     
 
