@@ -67,6 +67,13 @@ class image_converter:
     self.detect_blue_image1 = np.array([399,472])
     self.detect_blue_image2 = np.array([399,472])
 
+    # initialize errors
+    self.time_previous_step = np.array([rospy.get_time()], dtype='float64')     
+    self.time_previous_step2 = np.array([rospy.get_time()], dtype='float64')   
+    # initialize error and derivative of error for trajectory tracking  
+    self.error = np.array([0.0,0.0], dtype='float64')  
+    self.error_d = np.array([0.0,0.0], dtype='float64') 
+
 
   # In this method you can focus on detecting the centre of the red circle
   def detect_red(self,image):
@@ -302,7 +309,7 @@ def forward_kinematics(self,image):
 
 
 # Calculate the robot Jacobian
-def calculate_jacobian(self,image):
+def calculate_jacobian(self):
   #The published joints detected by the vision are placed in array
     joint = self.calc_angles()
     
@@ -360,91 +367,29 @@ def calculate_jacobian(self,image):
     ])
     return jacobian
 
-
-  # Calculate the forward kinematics
-def forward_kinematics(self,image):
-      #The published joints detected by the vision are placed in array
-    joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
-
-    #end effector matrix was derived using DH rules on paper first 
-    #the spaces in between signify the next row for readability
-    end_effector_matrix = np.array([
-    3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-    3.5 * np.sin(joint[0])*np.sin(joint[1])*np.cos[joint[2]] +    
-    3   * np.sin(joint[0])*np.sin(joint[3])*np.cos(joint[1]) +
-    3.5 * sin(joint[2])*cos(joint[0]) ,
-
-    3   *(np.sin(joint[0])*np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-    3.5 * np.sin(joint[0])*np.sin(joint[2]) +
-    -3.5* np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]) +
-    -3  * np.sin(joint[3])*np.cos(joint[0])*np.cos(joint[1]) ,
-
-    -3  * np.sin(joint[1])*np.sin(joint[3]) + 
-    3   * np.cos(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
-    3.5 * np.cos(joint[1])*np.cos(joint[2]) + 
-    2.5
-    ])
-    return end_effector_matrix
-
-
-  # Calculate the robot Jacobian
-def calculate_jacobian(self,image):
-      #The published joints detected by the vision are placed in array
-      joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
-
-      jacobian = np.array([
-      [
-      #dx/theta1
-      3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) - np.sin(joint[2])*np.sin(joint[0])) * np.cos(joint[3]) +
-      3.5 * np.cos(joint[0])*np.sin(joint[1])+np.cos[joint[2]] +    
-      3   * np.cos(joint[0])*np.sin(joint[3])+np.cos(joint[1]) +
-      -3.5 * sin(joint[2])+sin(joint[0]) ,
-      #dx/theta2
-      3   *np.sin(joint[0])*np.cos(joint[1])*np.cos(joint[2]) * np.cos(joint[3]) +
-      3.5 * np.sin(joint[0])*np.cos(joint[1])+np.cos[joint[2]] +    
-      -3   * np.sin(joint[0])*np.sin(joint[3])+np.sin(joint[1]) ,
-      #dx/theta3
-      3   *(-np.sin(joint[0])*np.sin(joint[1])*np.sin(joint[2]) + np.cos(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-      -3.5 * np.sin(joint[0])*np.sin(joint[1])+np.sin[joint[2]] +    
-      3.5 * sin(joint[2])+cos(joint[0]) ,
-      #dx/theta4
-      -3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.sin(joint[3]) +
-      3   * np.sin(joint[0])*np.sin(joint[3])+np.cos(joint[1]) ,
-      ],
-      [
-      #dy/theta1
-      3   *(np.cos(joint[0])* np.sin(joint[2]) + np.sin(joint[1])*np.sin(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-      3.5 * np.cos(joint[0])* np.sin(joint[2]) +
-      3.5 * np.sin(joint[1])* np.sin(joint[0])*np.cos(joint[2]) +
-      3   * np.sin(joint[3])* np.sin(joint[0])*np.cos(joint[1]) ,
-      #dy/theta2
-      3   *( - np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-      -3.5* np.cos(joint[1])* np.cos(joint[0])*np.cos(joint[2]) +
-      3  * np.sin(joint[3])* np.cos(joint[0])*np.sin(joint[1]) ,
-      #dy/theta3
-      3   *(np.sin(joint[0])* np.cos(joint[2]) - np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-      -3.5* np.cos(joint[1])* np.cos(joint[0])*np.cos(joint[2]) +
-      3  * np.sin(joint[3])* np.cos(joint[0])*np.sin(joint[1]) ,
-      #dy/theta4
-      -3   *(np.sin(joint[0])* np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.sin(joint[3]) +
-      -3  * np.cos(joint[3])* np.cos(joint[0])*np.cos(joint[1]) ,
-      ],
-      [
-      #dz/theta1
-      0,
-      #dz/theta2
-      -3  * np.cos(joint[1])*np.sin(joint[3]) + 
-      -3  * np.sin(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
-      -3.5* np.sin(joint[1])*np.cos(joint[2]) ,
-      #dz/theta3 
-      -3   * np.cos(joint[1])*np.sin(joint[2])*np.cos(joint[3])+
-      -3.5 * np.cos(joint[1])*np.sin(joint[2]) , 
-      #dz/theta4
-      -3  * np.sin(joint[1])*np.cos(joint[3]) + 
-      -3   * np.cos(joint[1])*np.cos(joint[2])*np.sin(joint[3])
-      ]
-      ])
-      return jacobian
+#closed control as defined in the lab 3
+def control_closed(self,image):
+        # P gain
+    K_p = np.array([[10,0],[0,10]])
+    # D gain
+    K_d = np.array([[0.1,0],[0,0.1]])
+    # estimate time step
+    cur_time = np.array([rospy.get_time()])
+    dt = cur_time - self.time_previous_step
+    self.time_previous_step = cur_time
+    # robot end-effector position
+    pos = self.get_coordinates(self.detect_red)
+    # desired trajectory
+    pos_d= self.get_coordinates(self.detect_orange_sphere) 
+    # estimate derivative of error
+    self.error_d = ((pos_d - pos) - self.error)/dt
+    # estimate error
+    self.error = pos_d-pos
+    q = np.array([0,self.calc_angles()]) # estimate initial value of joints'
+    J_inv = np.linalg.pinv(self.calculate_jacobian())  # calculating the psudeo inverse of Jacobian
+    dq_d =np.dot(J_inv, ( np.dot(K_d,self.error_d.transpose()) + np.dot(K_p,self.error.transpose()) ) )  # control input (angular velocity of joints)
+    q_d = q + (dt * dq_d)  # control input (angular position of joints)
+    return q_d
   
   
 
