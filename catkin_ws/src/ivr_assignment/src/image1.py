@@ -384,7 +384,7 @@ class image_converter:
         # P gain
     K_p = np.array([[5,0,0],[0,5,0],[0,0,5]])
     # D gain
-    K_d = np.array([[0.1,0,0],[0,0.1,0],[0,0,0.1]])
+    K_d = np.array([[-0.1,0,0],[0,-0.1,0],[0,0,-0.1]])
     # estimate time step
     cur_time = np.array([rospy.get_time()])
     dt = cur_time - self.time_previous_step
