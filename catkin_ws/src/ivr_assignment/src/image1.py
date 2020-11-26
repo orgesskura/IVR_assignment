@@ -303,7 +303,7 @@ def forward_kinematics(self,image):
 
 # Calculate the robot Jacobian
 def calculate_jacobian(self,image):
-    #The published joints detected by the vision are placed in array
+  #The published joints detected by the vision are placed in array
     joint = self.calc_angles()
     
     jacobian = np.array([
@@ -362,33 +362,33 @@ def calculate_jacobian(self,image):
 
 
   # Calculate the forward kinematics
-  def forward_kinematics(self,image):
+def forward_kinematics(self,image):
       #The published joints detected by the vision are placed in array
-      joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
+    joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
 
-      #end effector matrix was derived using DH rules on paper first 
-      #the spaces in between signify the next row for readability
-      end_effector_matrix = np.array([
-      3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-      3.5 * np.sin(joint[0])*np.sin(joint[1])+np.cos[joint[2]] +    
-      3   * np.sin(joint[0])*np.sin(joint[3])+np.cos(joint[1]) +
-      3.5 * sin(joint[2])+cos(joint[0]) ,
+    #end effector matrix was derived using DH rules on paper first 
+    #the spaces in between signify the next row for readability
+    end_effector_matrix = np.array([
+    3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
+    3.5 * np.sin(joint[0])*np.sin(joint[1])*np.cos[joint[2]] +    
+    3   * np.sin(joint[0])*np.sin(joint[3])*np.cos(joint[1]) +
+    3.5 * sin(joint[2])*cos(joint[0]) ,
 
-      3   *(np.sin(joint[0])*np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-      3.5 * np.sin(joint[0])*np.sin(joint[2]) +
-      -3.5* np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]) +
-      -3  * np.sin(joint[3])*np.cos(joint[0])*np.cos(joint[1]) ,
+    3   *(np.sin(joint[0])*np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
+    3.5 * np.sin(joint[0])*np.sin(joint[2]) +
+    -3.5* np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]) +
+    -3  * np.sin(joint[3])*np.cos(joint[0])*np.cos(joint[1]) ,
 
-      -3  * np.sin(joint[1])*np.sin(joint[3]) + 
-      3   * np.cos(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
-      3.5 * np.cos(joint[1])*np.cos(joint[2]) + 
-      2.5
-      ])
-      return end_effector_matrix
+    -3  * np.sin(joint[1])*np.sin(joint[3]) + 
+    3   * np.cos(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
+    3.5 * np.cos(joint[1])*np.cos(joint[2]) + 
+    2.5
+    ])
+    return end_effector_matrix
 
 
   # Calculate the robot Jacobian
-  def calculate_jacobian(self,image):
+def calculate_jacobian(self,image):
       #The published joints detected by the vision are placed in array
       joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
 
