@@ -240,7 +240,6 @@ class image_converter:
   def calc_angles(self):
     link3 = self.get_coordinates(self.detect_green) - [0,0,2.5] 
     j1 = np.arctan2(link3[1],link3[0])
-#     blue2green =  self.rotate_axis_z(-joint1Angle, blue2green)
     #rotation around x
     j2 = -(np.arctan2(link3[2], link3[1]) - np.pi/2)  
     if j2 > (np.pi)/2 :
