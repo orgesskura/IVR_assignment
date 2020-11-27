@@ -12,7 +12,8 @@ from cv_bridge import CvBridge, CvBridgeError
 import message_filters
 from scipy.optimize import least_squares
 from numpy import sin,cos
-from math import asin
+import math
+
 
  #record last detected colour(maybe implement it later)
 
@@ -57,7 +58,7 @@ class image_converter:
     self.joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
     
     #save current angles so we can use least squares
-    self.current_angles = np.array([1.0,1.0,1.0])
+    self.current_angles = [0,0,0,0]
     #hardcoded them so that i do not calculate ratio every time
     self.pixel2meter_image1 = 0.03955706129619173
     self.pixel2meter_image2 = 0.0391203563104617
@@ -80,6 +81,14 @@ class image_converter:
     self.prev_pos = np.array([0.0,0.0,9.0])
      # initialize errors
     self.time_previous_step = np.array([rospy.get_time()], dtype='float64') 
+    # initialize error and derivative of error for trajectory tracking  
+    self.error = np.array([0.0,0.0,0.0], dtype='float64')  
+    self.error_d = np.array([0.0,0.0,0.0], dtype='float64')
+    self.last_green_image1 = [0,0]
+    self.last_green_image2 = [0,0]
+    self.last_red_image1 = [0,0]
+    self.last_red_image2 = [0,0]
+
   # In this method you can focus on detecting the centre of the red circle
   def detect_red(self,image):
       # Isolate the blue colour in the image as a binary image
@@ -94,19 +103,19 @@ class image_converter:
             cx = int(M['m10'] / M['m00'])
             cy = int(M['m01'] / M['m00'])
             if image is self.cv_image1:
-                  last_red_image1[0] = cx
-                  last_red_image1[1] = cy
+                  self.last_red_image1[0] = cx
+                  self.last_red_image1[1] = cy
                   return np.array([cx, cy])
             else:
-                  last_red_image2[0] = cx
-                  last_red_image2[1] = cy
+                  self.last_red_image2[0] = cx
+                  self.last_red_image2[1] = cy
                   return np.array([cx, cy])
       #this is in case red is blocked by green
       else:
             if image is self.cv_image1:
-                  return np.array(last_red_image1)
+                  return np.array(self.last_red_image1)
             else :
-                  return np.array(last_red_image2)
+                  return np.array(self.last_red_image2)
       
 
       
@@ -122,17 +131,17 @@ class image_converter:
             cx = int(M['m10'] / M['m00'])
             cy = int(M['m01'] / M['m00'])
             if self.cv_image1 is image:
-                  self.last_green_image1 = np.array([cx,cy])
+                  self.last_green_image1 = [cx,cy]
                   return np.array([cx, cy])
             else:
-                  self.last_green_image2 = np.array([cx,cy])
+                  self.last_green_image2 = [cx,cy]
                   return np.array([cx, cy])
       #this is in case red is blocked by green
       else:
             if self.cv_image1 is image:
-                  return self.last_green_image1
+                  return np.array(self.last_green_image1)
             else :
-                  return self.last_green_image2
+                  return np.array(self.last_green_image2)
       
 
 
@@ -201,220 +210,87 @@ class image_converter:
         z_cord = self.detect_pos_z(color_sphere)
         return np.array([x_cord,y_cord,z_cord])
 
-  def calc_trans_physics(self,thetas):
-        b = np.array([[3.5*sin(thetas[1])*cos(thetas[0])],
-        [-3.5*sin(thetas[0])],
-        [3.5*cos(thetas[0]) * cos(thetas[1])+2.5]])
-        c = np.array([[6.5*sin(thetas[1])*cos(thetas[0])],
-        [-3*sin(thetas[0])*cos(thetas[2]) -3.5 * sin(thetas[0]) -  3 * sin(thetas[2])* cos(thetas[0]) * cos(thetas[1])],
-        [-3 * sin(thetas[0]) * sin(thetas[2])  + 3 * cos(thetas[0]) * cos(thetas[1]) * cos(thetas[2]) + 3.5 * cos(thetas[0]) * cos(thetas[1]) + 2.5 ]])
-        return b,c
+  def length_of_vector(self,vect):
+        squared_sum = np.sum(vect ** 2)
+        return np.sqrt(squared_sum)
 
 
-  def functions_direct(self,thetas3):
-         thetas1,thetas2 = self.calc_theta1_theta2()
-         red = self.get_coordinates(self.detect_red)
-         f = [0,0]
-         f[0] = -3*sin(thetas1)*cos(thetas3[0]) -3.5 * sin(thetas1) -  3 * sin(thetas3[0])* cos(thetas1) * cos(thetas2) - red[1]
-         f[1] = -3 * sin(thetas1) * sin(thetas3[0])  + 3 * cos(thetas1) * cos(thetas3[0]) * cos(thetas2) + 3.5 * cos(thetas1) * cos(thetas2) + 2.5 - red[2]
-         return f
-  def calc_angles_manually(self):
-        bounds = (-np.pi/3,np.pi/3)
-        res = least_squares(self.functions_direct,self.theta3,bounds = bounds)
-        self.theta3 = res.x
-        return res.x
+  def vector_angles(self,vect1,vect2):
+        dot_vect1_vect2 = np.dot(vect1,vect2)
+        length_vect1 = self.length_of_vector(vect1)
+        length_vect2 = self.length_of_vector(vect2)
+        return np.arccos(dot_vect1_vect2/(length_vect1 * length_vect2))
 
-  def functions_physics(self,thetas):
-        b,c = self.calc_trans_physics(thetas)
-        f = [0,0,0,0,0,0]
-        f[0] = b[0,0] - self.get_coordinates(self.detect_green)[0]
-        f[1] = b[1,0] - self.get_coordinates(self.detect_green)[1]
-        f[2] = b[2,0] - self.get_coordinates(self.detect_green)[2]
-        f[3] = c[0,0] - self.get_coordinates(self.detect_red)[0]
-        f[4] = c[1,0] - self.get_coordinates(self.detect_red)[1]
-        f[5] = c[2,0] - self.get_coordinates(self.detect_red)[2]
-        
-        return f
-  #calculate angles using least squares method
-  def calc_angles_leastSquares(self):
-        bounds = (
-        np.array([-np.pi/2, -np.pi/2, -np.pi/3]),
-        np.array([ np.pi/2, np.pi/2, np.pi/3]),
-                )
-        res = least_squares(self.functions_physics, self.current_angles,
-        bounds =bounds)
-        self.current_angles = res.x
-        print(res.cost)
-        return res
+
+  def rotateZ(self,theta,vec):
+        rotMat = np.array([[cos(theta),-sin(theta), 0], [sin(theta), cos(theta), 0], [0, 0, 1]])
+        return np.dot(rotMat,vec)
+
+  def rotateX(self,theta,vec):
+        rotMat =np.array([[1, 0, 0], [0, cos(theta), -sin(theta)], [0, sin(theta), cos(theta)]])
+        return np.dot(rotMat,vec)
+
+  def projection (self,v1, v2): #Projects v1 onto v2
+    return np.multiply((np.dot(v1,v2) / pow( self.length_of_vector(v2),2)), v2)
 
   # calculate angles in naive way
-  def calc_angles_naive(self):
-        a = self.pixel2meter_image1
-        b = self.pixel2meter_image2
-        yellow1 = a*self.detect_yellow_image1
-        yellow2 = b*self.detect_yellow_image2
-        blue1 = a * self.detect_blue_image1
-        blue2 = b * self.detect_blue_image2
-        green1 = a*(self.detect_green(self.cv_image1))
-        green2 = b*(self.detect_green(self.cv_image2))
-        red1 = a* self.detect_red(self.cv_image1)
-        red2 = b * self.detect_red(self.cv_image2)
-        #calculate rotation around x-axis using camera 1
-
-        j2=np.arctan2(blue1[0]-green1[0],blue1[1]-green1[1])
-        #do this since arctan2 return angles in [-pi,pi] range
-        if j2 > (np.pi)/2 :
+  def calc_angles(self):
+    #rotation around z
+    link3 = self.get_coordinates(self.detect_green) - [0,0,2.5] 
+    j1 = np.arctan2(link3[1],link3[0])
+#     blue2green =  self.rotateZ(-joint1Angle, blue2green)
+    #rotation around x
+    j2 = -(np.arctan2(link3[2], link3[1]) - np.pi/2)  
+    if j2 > (np.pi)/2 :
               a = np.pi - j2
               b = (np.pi)/2 - a
               j2 = (np.pi)/2 - b
-        elif j2 < -(np.pi)/2 :
+    elif j2 < -(np.pi)/2 :
               a = np.pi + j2
               b = (np.pi)/2 - a
               j2 = -(np.pi)/2 + b
-        else :
+    else :
               j2 = j2
-        #calculate rotation around y-axis using camera 2
-        j3 = -(np.arctan2(blue2[0]-green2[0],blue2[1]-green2[1]) )
-        if j3 > (np.pi)/2 :
+
+    link3 = self.rotateX(-j2, link3)
+    #Rotation around y
+    j3 = np.arctan2(link3[2], link3[0]) - np.pi/2 
+    if j3 > np.pi :
+          j3 = j3 - 2 *np.pi
+    elif j3 < np.pi:
+          j3 = j3 + 2 *np.pi
+
+    if j3 > (np.pi)/2 :
               a = np.pi - j3
               b = (np.pi)/2 - a
               j3 = (np.pi)/2 - b
-        elif j3 < -(np.pi)/2 :
+    elif j3 < -(np.pi)/2 :
               a = np.pi + j3
               b = (np.pi)/2 - a
               j3 = -(np.pi)/2 + b
-        else :
+    else :
               j3 = j3
+    link4 = self.get_coordinates(self.detect_red) - self.get_coordinates(self.detect_green) #Vector representing link
+    proj= self.projection(link4, link3) #Projections
+    if (self.length_of_vector(link4 + proj) < self.length_of_vector(link4)):
+      j4 = np.pi /2 - self.vector_angles(link4, proj) #Flipped if needed
+    else :
+      j4 = self.vector_angles(link4, proj)
 
-        #calculate rotation around x-axis using camera 1 for last angles since rotation around y in camera 1 does not change angles
-        j4 = np.arctan2(green1[0]-red1[0],green1[1]-red1[1])
-        if j4 > (np.pi)/2 :
-              a = np.pi - j4
-              b = (np.pi)/2 - a
-              j4 = (np.pi)/2 - b
-        elif j4 < -(np.pi)/2 :
-              a = np.pi + j4
-              b = (np.pi)/2 - a
-              j4 = -(np.pi)/2 + b
-        else :
-              j4 = j4
-        j4 = j4 - j2
-
-        return [j2,j3,j4]
+    return np.array([j1,j2, j3, j4])
+      
+  def length_of_vector(self,vect):
+        squared_sum = np.sum(vect ** 2)
+        return np.sqrt(squared_sum)
 
 
-  def find_angles(self):
-        jacobian = self.calculate_jacobian(self.q_prev_observed)
-        cur_time = np.array([rospy.get_time()])
-        dt = cur_time - self.time_previous_step
-        self.time_previous_step = cur_time
-        # robot end-effector position
-        pos = self.prev_pos
-        # desired trajectory
-        pos_d= self.get_coordinates(self.detect_red)
-        # estimate derivative of error
-        pos_der= (pos_d - pos)/dt
-        self.prev_pos= pos_d
-        q_d = np.dot(np.linalg.pinv(jacobian),pos_d)
-        q = self.q_prev_observed + q_d * dt
-        for i in range(4):
-              if i == 0:
-                    if q[i] >  np.pi :
-                          while(q[i] > np.pi):
-                                q[i] -= 2*np.pi
-                    elif q[i] < -np.pi:
-                          while(q[i] < -np.pi):
-                                q[i] += 2 *np.pi
-              else:
-                    if q[i] > np.pi/2 :
-                          while(q[i] > np.pi/2):
-                                q[i] -= 2*np.pi
-                    elif q[i] < -np.pi/2 :
-                         while(q[i] <  -np.pi/2):
-                                 q[i] += 2*np.pi
-        return q
+  def vector_angles(self,vect1,vect2):
+        dot_vect1_vect2 = np.dot(vect1,vect2)
+        length_vect1 = self.length_of_vector(vect1)
+        length_vect2 = self.length_of_vector(vect2)
+        return np.arccos(dot_vect1_vect2/(length_vect1 * length_vect2))
 
-
-  def forward_kinematics(self,image):
-    #The published joints detected by the vision are placed in array
-    joint = [self.joints_pub,self.joint2_pub,self.joint3_pub,self.joint4_pub]
-
-    #end effector matrix was derived using DH rules on paper first 
-    #the spaces in between signify the next row for readability
-    end_effector_matrix = np.array([
-    3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-    3.5 * np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) +    
-    3   * np.sin(joint[0])*np.sin(joint[3])*np.cos(joint[1]) +
-    3.5 * sin(joint[2])*cos(joint[0]) ,
-
-    3   *(np.sin(joint[0])*np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-    3.5 * np.sin(joint[0])*np.sin(joint[2]) +
-    -3.5* np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]) +
-    -3  * np.sin(joint[3])*np.cos(joint[0])*np.cos(joint[1]) ,
-
-    -3  * np.sin(joint[1])*np.sin(joint[3]) + 
-    3   * np.cos(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
-    3.5 * np.cos(joint[1])*np.cos(joint[2]) + 
-    2.5
-    ])
-    return end_effector_matrix
-
- # Calculate the robot Jacobian
-  def calculate_jacobian(self,joint):
-    
-    jacobian = np.array([
-        [
-        #dx/theta1
-        3   *(np.cos(joint[0])*np.sin(joint[1])*np.cos(joint[2]) - np.sin(joint[2])*np.sin(joint[0])) * np.cos(joint[3]) +
-        3.5 * np.cos(joint[0])*np.sin(joint[1])+np.cos(joint[2]) +    
-        3   * np.cos(joint[0])*np.sin(joint[3])+np.cos(joint[1]) -
-        3.5 * sin(joint[2])*sin(joint[0]) ,
-        #dx/theta2
-        3   *np.sin(joint[0])*np.cos(joint[1])*np.cos(joint[2]) * np.cos(joint[3]) +
-        3.5 * np.sin(joint[0])*np.cos(joint[1])+np.cos(joint[2]) +    
-        -3   * np.sin(joint[0])*np.sin(joint[3]) *np.sin(joint[1]) ,
-        #dx/theta3
-        3   *(-np.sin(joint[0])*np.sin(joint[1])*np.sin(joint[2]) + np.cos(joint[2])*np.cos(joint[0])) * np.cos(joint[3]) +
-        -3.5 * np.sin(joint[0])*np.sin(joint[1])+np.sin(joint[2]) +    
-        3.5 * cos(joint[2])*cos(joint[0]) ,
-        #dx/theta4
-        -3   *(np.sin(joint[0])*np.sin(joint[1])*np.cos(joint[2]) + np.sin(joint[2])*np.cos(joint[0])) * np.sin(joint[3]) +
-        3   * np.sin(joint[0])*np.cos(joint[3])*np.cos(joint[1]) ,
-        ],
-        [
-        #dy/theta1
-        3   *(np.cos(joint[0])* np.sin(joint[2]) + np.sin(joint[1])*np.sin(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-        3.5 * np.cos(joint[0])* np.sin(joint[2]) +
-        3.5 * np.sin(joint[1])* np.sin(joint[0])*np.cos(joint[2]) +
-        3   * np.sin(joint[3])* np.sin(joint[0])*np.cos(joint[1]) ,
-        #dy/theta2        
-        3   *( - np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-        -3.5* np.cos(joint[1])* np.cos(joint[0])*np.cos(joint[2]) +
-        3  * np.sin(joint[3])* np.cos(joint[0])*np.sin(joint[1]) ,
-        #dy/theta3
-        3   *(np.sin(joint[0])* np.cos(joint[2]) + np.cos(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.cos(joint[3]) +
-        3.5 * np.sin(joint[0]) * np.cos(joint[2])  +
-        3.5* np.sin(joint[1])* np.cos(joint[0])*np.sin(joint[2]) ,
-        #dy/theta4
-        -3   *(np.sin(joint[0])* np.sin(joint[2]) - np.sin(joint[1])*np.cos(joint[0])*np.cos(joint[2]))*np.sin(joint[3]) +
-        -3  * np.cos(joint[3])* np.cos(joint[0])*np.cos(joint[1]) ,
-        ],
-        [
-        #dz/theta1
-        0,
-        #dz/theta2
-        -3  * np.cos(joint[1])*np.sin(joint[3]) + 
-        -3  * np.sin(joint[1])*np.cos(joint[2])*np.cos(joint[3])+
-        -3.5* np.sin(joint[1])*np.cos(joint[2]) ,
-        #dz/theta3 
-        -3   * np.cos(joint[1])*np.sin(joint[2])*np.cos(joint[3])+
-        -3.5 * np.cos(joint[1])*np.sin(joint[2]) , 
-        #dz/theta4
-        -3  * np.sin(joint[1])*np.cos(joint[3]) + 
-        -3   * np.cos(joint[1])*np.cos(joint[2])*np.sin(joint[3])
-        ]
-    ])
-    return jacobian
+  
 
         
 
@@ -432,8 +308,7 @@ class image_converter:
     
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)
-
-    #Set the joint angles  according to the assignment requirements
+      #Set the joint angles  according to the assignment requirements
     joint1_val = Float64()
     joint1_val.data = (np.pi) * np.sin((np.pi/15) * (rospy.get_time() - self.time_initial)) 
     joint2_val = Float64()
@@ -443,24 +318,24 @@ class image_converter:
     joint4_val = Float64()
     joint4_val.data = (np.pi/3) * np.sin((np.pi/20) * (rospy.get_time()-self.time_initial))
 
-#     print(self.pixel2meter(self.cv_image2))
-#     im1=cv2.imshow('window1', self.cv_image1)
-#     cv2.waitKey(1)
-#     print(self.get_coordinates(self.detect_green))
+      #     print(self.pixel2meter(self.cv_image2))
+      #     im1=cv2.imshow('window1', self.cv_image1)
+      #     cv2.waitKey(1)
+      #     print(self.get_coordinates(self.detect_green))
     self.joints = Float64MultiArray()#The published joints detected by the vision are placed in array
-    self.joints.data = self.find_angles()
+    self.joints.data = self.calc_angles()
 
-    #Publish the results
+      #Publish the results
     try: 
-      # self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
-      self.joints_pub.publish(self.joints)
-      self.joint1_pub.publish(joint1_val)
-      self.joint2_pub.publish(joint2_val)
-      self.joint3_pub.publish(joint3_val)
-      self.joint4_pub.publish(joint4_val)
-      
+            # self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
+            self.joints_pub.publish(self.joints)
+            self.joint1_pub.publish(joint1_val)
+            self.joint2_pub.publish(joint2_val)
+            self.joint3_pub.publish(joint3_val)
+            self.joint4_pub.publish(joint4_val)
+            
     except CvBridgeError as e:
-      print(e)
+            print(e)
     
 
 
