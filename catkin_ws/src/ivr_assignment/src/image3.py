@@ -222,23 +222,25 @@ class image_converter:
         return np.arccos(dot_vect1_vect2/(length_vect1 * length_vect2))
 
 
-  def rotateZ(self,theta,vec):
+  def rotate_axis_z(self,theta,vec):
         rotMat = np.array([[cos(theta),-sin(theta), 0], [sin(theta), cos(theta), 0], [0, 0, 1]])
         return np.dot(rotMat,vec)
 
-  def rotateX(self,theta,vec):
+  def rotate_axis_x(self,theta,vec):
         rotMat =np.array([[1, 0, 0], [0, cos(theta), -sin(theta)], [0, sin(theta), cos(theta)]])
         return np.dot(rotMat,vec)
 
-  def projection (self,v1, v2): #Projects v1 onto v2
-    return np.multiply((np.dot(v1,v2) / pow( self.length_of_vector(v2),2)), v2)
+  def projection(self,vect1, vect2):
+    dot_prod = np.dot(vect1,vect2)
+    sqrt_length = self.length_of_vector(vect2) * self.length_of_vector(vect2)
+    amount_proj = dot_prod/sqrt_length
+    return amount_proj * vect2
 
   # calculate angles in naive way
   def calc_angles(self):
-    #rotation around z
     link3 = self.get_coordinates(self.detect_green) - [0,0,2.5] 
     j1 = np.arctan2(link3[1],link3[0])
-#     blue2green =  self.rotateZ(-joint1Angle, blue2green)
+#     blue2green =  self.rotate_axis_z(-joint1Angle, blue2green)
     #rotation around x
     j2 = -(np.arctan2(link3[2], link3[1]) - np.pi/2)  
     if j2 > (np.pi)/2 :
@@ -252,7 +254,7 @@ class image_converter:
     else :
               j2 = j2
 
-    link3 = self.rotateX(-j2, link3)
+    link3 = self.rotate_axis_x(-j2, link3)
     #Rotation around y
     j3 = np.arctan2(link3[2], link3[0]) - np.pi/2 
     if j3 > np.pi :
@@ -270,13 +272,13 @@ class image_converter:
               j3 = -(np.pi)/2 + b
     else :
               j3 = j3
-    link4 = self.get_coordinates(self.detect_red) - self.get_coordinates(self.detect_green) #Vector representing link
-    proj= self.projection(link4, link3) #Projections
-    if (self.length_of_vector(link4 + proj) < self.length_of_vector(link4)):
-      j4 = np.pi /2 - self.vector_angles(link4, proj) #Flipped if needed
+    link4 = self.get_coordinates(self.detect_red) - self.get_coordinates(self.detect_green) 
+    proj= self.projection(link4, link3)
+    if (self.length_of_vector(link4 + proj) >= self.length_of_vector(link4)):
+       j4 = self.vector_angles(link4, proj)
     else :
-      j4 = self.vector_angles(link4, proj)
-
+       j4 = np.pi /2 - self.vector_angles(link4, proj)
+    
     return np.array([j1,j2, j3, j4])
       
   def length_of_vector(self,vect):
