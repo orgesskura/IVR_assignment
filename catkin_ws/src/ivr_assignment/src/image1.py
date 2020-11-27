@@ -176,16 +176,16 @@ class image_converter:
     #get template in a black and white format as it is better like that for matching
     template =cv2.imread("template.png", 0) 
     #get orange thresholding
-    thresh = cv2.inRange(image, (0,50,100), (15,75,150))
+    threshold = cv2.inRange(image, (0,50,100), (15,75,150))
     #get width and height of template in order to get center of matching
     width, height = template.shape[::-1] 
     #template matching between threshold and template i have. Code is adapted from opencv python tutorials
-    matching = cv2.matchTemplate(thresh, template, 1)
+    matching = cv2.matchTemplate(threshold, template, 1)
     #Get result of matching the template with thresholded image
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(matching) 
     #Returns the centre of the orange sphere
     print([min_loc[0] + width/2, min_loc[1] + height/2])
-    if (sum(sum(thresh)) == 0):
+    if (sum(sum(threshold)) == 0):
       if image is self.cv_image1:
             return np.array(last_orange_image1)
       else :
