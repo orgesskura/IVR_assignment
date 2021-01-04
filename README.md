@@ -13,3 +13,5 @@ The full specifications of the coursework can be found in IVR_Assignment(1).pdf 
 
 
 Part 2 is run through image2.py and Part 3 is run through image1.py. We choose 4.1 and it is run by image3.py.
+
+Final Mark : A(97%)
